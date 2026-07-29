@@ -1,8 +1,30 @@
 #!/usr/bin/env python3
 """Build Fynd Receivables Insights v4 dashboard."""
-import json, os
+import json, os, sys
 
-with open('/sessions/serene-keen-mendel/data3.json') as f:
+# Resolve data + output paths so this script runs both in the original
+# sandbox and inside a Docker build (e.g. Boltic serverless).
+_HERE          = os.path.dirname(os.path.abspath(__file__))
+_LEGACY_ROOT   = '/sessions/serene-keen-mendel'
+_LEGACY_OUTDIR = '/sessions/serene-keen-mendel/mnt/outputs'
+
+_DATA_CANDIDATES = [
+    os.environ.get('AR_DATA_PATH'),                # explicit override
+    os.path.join(_HERE, 'data3.json'),             # repo-local (Docker/Boltic)
+    os.path.join(_LEGACY_ROOT, 'data3.json'),      # legacy sandbox
+]
+_DATA_PATH = next((p for p in _DATA_CANDIDATES if p and os.path.exists(p)), None)
+if _DATA_PATH is None:
+    raise SystemExit(
+        "data3.json not found. Set AR_DATA_PATH or drop data3.json next to build_v4.py."
+    )
+
+_OUT_DIR = os.environ.get('AR_OUT_DIR') or (
+    _LEGACY_OUTDIR if os.path.isdir(_LEGACY_OUTDIR) else os.path.join(_HERE, 'build')
+)
+os.makedirs(_OUT_DIR, exist_ok=True)
+
+with open(_DATA_PATH) as f:
     DATA = f.read()
 
 HTML = r"""<!DOCTYPE html>
@@ -14258,8 +14280,6 @@ try {
 </body>
 </html>"""
 
-import sys
-
 # --- Build mode -------------------------------------------------
 # Default: embed the historical AR data inline so the file works offline.
 # `--slim`: skip embedded data — the dashboard always live-fetches anyway.
@@ -14269,10 +14289,10 @@ SLIM = '--slim' in sys.argv
 
 if SLIM:
     INJECT = "window.__AR_DATA__ = [];"
-    OUT = '/sessions/serene-keen-mendel/mnt/outputs/Fynd_Receivables_Insights__slim.html'
+    OUT = os.path.join(_OUT_DIR, 'Fynd_Receivables_Insights__slim.html')
 else:
     INJECT = "window.__AR_DATA__ = " + DATA + ";"
-    OUT = '/sessions/serene-keen-mendel/mnt/outputs/Fynd_Receivables_Insights.html'
+    OUT = os.path.join(_OUT_DIR, 'Fynd_Receivables_Insights.html')
 
 HTML_OUT = HTML.replace("// __DATA_INJECTION_POINT__", INJECT)
 

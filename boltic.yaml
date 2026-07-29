@@ -1,0 +1,28 @@
+app: fynd-ar-insights
+region: asia-south1
+entrypoint: "app.py"
+
+build:
+  dockerfile: Dockerfile
+  ignorefile: .dockerignore
+
+env:
+  PORT: "8080"
+
+serverlessConfig:
+  Env:
+    PORT: "8080"
+  PortMap:
+    - Name: "http"
+      Port: 8080
+      Protocol: "http"
+  Scaling:
+    AutoStop: true
+    Min: 1
+    Max: 2
+    MaxIdleTime: 600
+  Resources:
+    CPU: 0.5
+    MemoryMB: 512
+    MemoryMaxMB: 1024
+  Timeout: 60
