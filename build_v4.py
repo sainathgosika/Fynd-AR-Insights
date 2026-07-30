@@ -856,7 +856,7 @@ HTML = r"""<!DOCTYPE html>
             <span id="liveLabel" style="display:none"></span>
           </button>
           <span id="cacheStatePill" style="display:none;font-size:11px;padding:3px 8px;border-radius:9999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;">Showing cached data · refreshing…</span>
-          <button id="btnHardRefresh" class="icon-btn" data-tip="Hard Refresh — purge server cache & reload everything">↻</button>
+          <button id="btnHardRefresh" class="icon-btn" data-tip="Hard Refresh — reload live data from Google Sheets">↻</button>
           <button id="btnPrint"   class="icon-btn" data-tip="Print or save as PDF">🖨</button>
           <button id="btnSettings" class="icon-btn" data-tip="Configure live data source">⚙</button>
         </div>
@@ -4137,30 +4137,51 @@ function wireHardRefresh(){
   btn.addEventListener('click', async ()=>{
     const icon = btn.querySelector('.hr-icon') || btn;
     icon.classList.add('hr-spin');
-    btn.setAttribute('data-tip', 'Hard Refresh — reloading…');
-    // Clear in-memory caches so the next paint pulls fresh data
+    btn.setAttribute('data-tip', 'Hard Refresh — reloading live data from Google Sheets…');
+    // ---- 1. Wipe every layer of client-side cache so nothing stale can
+    //         bleed into the next paint. ----
     try { window._alLoaded = false; } catch(_){}
     try { window._acmLoaded = false; } catch(_){}
     try { window._wlLoaded = false; } catch(_){}
+    // Nuke the (now-unused) localStorage snapshot so it can never re-hydrate.
+    try { localStorage.removeItem(LS_KEY_SNAPSHOT); localStorage.removeItem(LS_KEY_SNAPSHOT_TS); } catch(_){}
+    // Zero out in-memory state so a failed fetch doesn't leave the old
+    // numbers on screen.
+    try {
+      state.data = [];
+      state.pdd  = [];
+      state.bank = [];
+    } catch(_){}
+    // Destroy Chart.js instances — paintCharts() will rebuild from fresh data.
     try { Object.keys(charts||{}).forEach(k=>{ try{ charts[k].destroy && charts[k].destroy(); }catch(_){} delete charts[k]; }); } catch(_){}
-    // If a live URL is configured, first purge the server-side CacheService
-    // entry so serveData_ re-reads the sheet, then force a fresh JSONP pull.
-    // Otherwise just recompute from whatever data is in memory.
+    // ---- 2. Pull fresh data live from Google Sheets. ----
     const urlKey = ('LS_KEY_URL' in window) ? LS_KEY_URL : 'fynd_ar_live_url';
     const liveUrl = (typeof localStorage !== 'undefined') ? (window.__DATA_URL__ || localStorage.getItem(urlKey) || '').trim() : '';
     if (typeof liveFetch === 'function' && liveUrl) {
-      // Purge the server-side cache (best-effort; ignore failures).
+      // Purge the server-side CacheService entry too (belt-and-braces even
+      // though serveData_ is now live-only).
       try {
         var sep = liveUrl.indexOf('?')>=0 ? '&' : '?';
         if (typeof jsonpFetch === 'function') { await jsonpFetch(liveUrl + sep + 'action=dataRefresh', 30000); }
       } catch(_){}
-      try { await liveFetch(true); } catch(_){ try{ refresh(); }catch(__){} }
+      // liveFetch() re-reads Sheets, replaces state.data/pdd/bank, and calls
+      // buildAllFilters(); refresh(); paintPDD(); paintBank() — i.e. it
+      // fully re-renders KPIs, charts, and every table on the dashboard.
+      try {
+        await liveFetch(true);
+      } catch(err) {
+        // Fetch failed — surface the error and at least re-render what we have
+        // so the dashboard doesn't stay stuck in a spinner.
+        try { setSyncStatus('Refresh failed: '+(err && err.message || err), false); } catch(_){}
+        try { refresh(); paintPDD(); paintBank(); } catch(__){}
+      }
     } else {
-      try { refresh(); } catch(_){}
+      // No live URL — nothing to fetch. Repaint whatever's in memory.
+      try { refresh(); paintPDD(); paintBank(); } catch(_){}
     }
     setTimeout(()=>{
       icon.classList.remove('hr-spin');
-      btn.setAttribute('data-tip', 'Hard Refresh — purge server cache & reload everything');
+      btn.setAttribute('data-tip', 'Hard Refresh — reload live data from Google Sheets');
     }, 1200);
   });
 }
@@ -5430,7 +5451,11 @@ async function liveFetch(showAlerts){
   if(!url){ if(showAlerts) alert('No Web App URL configured. Open Settings to add one.'); return; }
   setSyncStatus('Syncing…', false);
   try {
-    const j = await jsonpFetch(url, 60000);
+    // LIVE-ONLY: append nocache=1 so — even if the backend cache is ever
+    // re-enabled — the dashboard always gets a fresh sheet read.
+    const nocacheSep = url.indexOf('?')>=0 ? '&' : '?';
+    const liveUrl = url + nocacheSep + 'nocache=1';
+    const j = await jsonpFetch(liveUrl, 60000);
     if(j.error) throw new Error(j.error);
     // Filter #N/A rows defensively (Apps Script also drops them)
     const arRows = (j.ar||[]).filter(r=> !rowHasErr(r));
@@ -5441,22 +5466,17 @@ async function liveFetch(showAlerts){
     const rawArHeaders   = (apiHeaders.ar   && apiHeaders.ar.length)   ? apiHeaders.ar   : (arRows[0]      ? Object.keys(arRows[0])      : []);
     const rawPddHeaders  = (apiHeaders.pdd  && apiHeaders.pdd.length)  ? apiHeaders.pdd  : ((j.pdd||[])[0]  ? Object.keys(j.pdd[0])  : []);
     const rawBankHeaders = (apiHeaders.bank && apiHeaders.bank.length) ? apiHeaders.bank : ((j.bank||[])[0] ? Object.keys(j.bank[0]) : []);
+    // Destroy any live Chart.js instances BEFORE we overwrite state, so the
+    // next paintCharts() rebuilds from scratch instead of mutating stale
+    // instances (which is what caused old numbers to linger on refresh).
+    try { Object.keys(charts||{}).forEach(k=>{ try{ charts[k].destroy && charts[k].destroy(); }catch(_){} delete charts[k]; }); } catch(_){}
     state.data = arRows.map(mapARRow);
     state.pdd  = (j.pdd||[]).map(mapPDDRow);
     state.bank = (j.bank||[]).map(mapBankRow);
     buildAllFilters(); refresh(); paintPDD(); paintBank();
-    // Persist the (already-mapped) payload as an instant-paint snapshot for
-    // the next boot. Do this AFTER render so slow write can't delay paint.
-    try {
-      _writeSnapshot({
-        data: state.data,
-        pdd:  state.pdd,
-        bank: state.bank,
-        counts: j.counts || {},
-        tabsResolved: j.tabsResolved || {},
-        generated: j.generated || new Date().toISOString()
-      });
-    } catch(_){}
+    // LIVE-ONLY: snapshot writing removed — we no longer hydrate from it.
+    // Clear any stale snapshot proactively in case an older build wrote one.
+    try { localStorage.removeItem(LS_KEY_SNAPSHOT); localStorage.removeItem(LS_KEY_SNAPSHOT_TS); } catch(_){}
     // Hide the "Showing cached data · refreshing…" pill once live payload is in.
     try{ var _pill = document.getElementById('cacheStatePill'); if(_pill) _pill.style.display='none'; }catch(_){}
     const skipped = (j.counts && j.counts.arSkipped) || 0;
@@ -14159,30 +14179,17 @@ function boot(){
   // Progress overlay: HTML is parsed by now, so we're past "Connecting".
   try{ if(window.bootProgress) bootProgress.step(2); }catch(_){}
   // ------------------------------------------------------------------
-  // Instant-paint snapshot hydration
+  // LIVE-ONLY MODE — no snapshot hydration
   // ------------------------------------------------------------------
-  // If localStorage has a fresh ar_snapshot_v1 (< 24h old), use it to
-  // populate state.data / state.pdd / state.bank BEFORE we contact the
-  // network. This lets us call renderAll() immediately and paint a
-  // fully-usable dashboard in <1 s on repeat opens. When the live
-  // fetch lands, state is replaced and everything re-renders.
-  var _snap = null;
-  try { _snap = _readSnapshot(); } catch(_){ _snap = null; }
-  if (_snap && _snap.payload && Array.isArray(_snap.payload.data)) {
-    state.data = _snap.payload.data;
-    state.pdd  = _snap.payload.pdd  || [];
-    state.bank = _snap.payload.bank || [];
-    // Reveal the "Showing cached data · refreshing…" pill so users know a
-    // fresh fetch is in flight. liveFetch() hides it when the fresh payload
-    // lands.
-    try{
-      var _pill = document.getElementById('cacheStatePill');
-      if (_pill) _pill.style.display = '';
-    }catch(_){}
-    try{ if(window.bootProgress){ bootProgress.step(4); bootProgress.hint('Rendering cached data…'); } }catch(_){}
-  } else {
-    state.data = window.__AR_DATA__ || [];
-  }
+  // We deliberately do NOT paint from the localStorage ar_snapshot cache.
+  // The dashboard must never show stale data — every boot starts empty
+  // and only the live JSONP fetch below populates state. Any previously
+  // written snapshot is proactively cleared so it can never be re-read.
+  try { localStorage.removeItem('ar_snapshot_v1'); } catch(_){}
+  state.data = window.__AR_DATA__ || [];
+  state.pdd  = [];
+  state.bank = [];
+  try{ if(window.bootProgress){ bootProgress.step(4); bootProgress.hint('Fetching live data from Google Sheets…'); } }catch(_){}
   _bootSafe('buildAllFilters',   function(){ buildAllFilters(); });
   _bootSafe('wireDateChips',     function(){ wireDateChips(); });
   _bootSafe('wireMoreFilters',   function(){ wireMoreFilters(); });

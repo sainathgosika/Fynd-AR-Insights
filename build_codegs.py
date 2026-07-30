@@ -781,10 +781,14 @@ function serveData_(e) {
     var p = (e && e.parameter) || {};
     var cache = CacheService.getScriptCache();
 
-    // Client can bypass cache with ?nocache=1 (used by the "Refresh data" button
-    // if it ever needs a hard reload).
-    var noCache = String(p.nocache || '') === '1';
-    if (!noCache) {
+    // LIVE-ONLY MODE: the dashboard must always reflect the current state of
+    // the Google Sheet. Historically we cached the JSON payload in
+    // CacheService for 5 minutes; that led to stale numbers after collectors
+    // updated the sheet. The cache-read step is now permanently disabled —
+    // every request re-reads the tabs. The client can *opt in* to a cached
+    // response via ?cache=1 (nobody does today; kept for future use).
+    var useCache = String(p.cache || '') === '1';
+    if (useCache) {
       var cached = _arCacheRead_(cache);
       if (cached) {
         var cb = e && e.parameter && e.parameter.callback;
@@ -838,11 +842,13 @@ function serveData_(e) {
       followupContactCids: contactsSet
     };
 
-    // Stringify once, cache the string, and hand the same string to respond_
-    // (which will re-parse-and-restringify if we let it — instead, do JSONP wrap
+    // Stringify once and hand the same string to respond_ (which would
+    // re-parse-and-restringify if we let it — instead, do JSONP wrap
     // inline to avoid the double serialisation cost).
+    // NB: cache write is only meaningful when useCache=true reads can happen;
+    // keep writing so the opt-in cache path still works for future callers.
     var json = JSON.stringify(payload);
-    _arCacheWrite_(cache, json);
+    if (useCache) _arCacheWrite_(cache, json);
 
     var cb2 = e && e.parameter && e.parameter.callback;
     if (cb2 && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cb2)) {
