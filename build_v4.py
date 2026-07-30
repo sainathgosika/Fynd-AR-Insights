@@ -9194,7 +9194,36 @@ async function pocSyncFromContacts(){
       isIns + ' inserted, ' + isUpd + ' updated' +
       (isDup ? (', ' + isDup + ' duplicates removed') : '') +
       '</div>';
-    if (bar) bar.innerHTML = parts.join(' · ') + breakdown;
+    // If the sync scanned 0 rows even though data clearly exists on the
+    // sheet, dump the diagnostic snapshot the backend gathered so the user
+    // can see whether it was a missing tab, missing column, or empty CID
+    // column. Also surfaced when errors > 0.
+    let diagBlock = '';
+    if ((total === 0 || err > 0) && res.diag){
+      const d = res.diag;
+      const cols = d.columns || {};
+      const header = Array.isArray(d.header) ? d.header : [];
+      const samples = Array.isArray(d.sampleRows) ? d.sampleRows : [];
+      const colInfo = 'CID col: ' + (cols.iCid >= 0 ? (cols.iCid + ' → ' + _pocEsc(String(header[cols.iCid] || ''))) : '<span style="color:#b91c1c">NOT FOUND</span>')
+        + ' · To col: ' + (cols.iTo >= 0 ? (cols.iTo + ' → ' + _pocEsc(String(header[cols.iTo] || ''))) : '<span style="color:#b91c1c">NOT FOUND</span>')
+        + ' · CC col: ' + (cols.iCc >= 0 ? (cols.iCc + ' → ' + _pocEsc(String(header[cols.iCc] || ''))) : 'not found (optional)');
+      const sampleHtml = samples.length
+        ? '<div class="text-[11px] text-slate-500" style="margin-top:4px">Sample rows: <ol style="margin:2px 0 0 20px;padding:0">'
+          + samples.map(row => '<li>' + row.slice(0, 6).map(c => _pocEsc(String(c || '(blank)'))).join(' · ') + '</li>').join('')
+          + '</ol></div>'
+        : '';
+      diagBlock =
+        '<div class="text-[11px]" style="background:#fef3c7;border:1px solid #fbbf24;padding:8px;border-radius:6px;margin-top:6px;color:#78350f">' +
+          '<div style="font-weight:600;margin-bottom:2px">🔎 Backend snapshot of Customer_Contacts</div>' +
+          '<div>Sheet found: ' + (d.sheetFound ? 'yes' : '<span style="color:#b91c1c">NO — check tab name</span>') +
+          ' · Data rows: ' + Number(d.dataRows || 0) +
+          ' · Header cells: ' + header.length + '</div>' +
+          '<div style="margin-top:2px">Header row: ' + (header.length ? header.slice(0, 12).map(h => _pocEsc(String(h || '(blank)'))).join(' | ') : '<span style="color:#b91c1c">empty</span>') + '</div>' +
+          '<div style="margin-top:2px">' + colInfo + '</div>' +
+          sampleHtml +
+        '</div>';
+    }
+    if (bar) bar.innerHTML = parts.join(' · ') + breakdown + diagBlock;
     await pocLoad();
   } catch(ex) {
     const msg = (ex && ex.message) || String(ex);

@@ -4766,22 +4766,34 @@ function _pocMigrateFromLegacy_(ss, actor) {
     skipped: 0, errors: 0, details: []
   };
   var vals = sh.getDataRange().getValues();
+  emptyCounts.dataRows = Math.max(0, vals.length - 1);
+  emptyCounts.header   = vals.length ? vals[0].map(function(h){ return String(h == null ? '' : h); }) : [];
   if (vals.length < 2) return emptyCounts;
   var head = vals[0].map(function(h){ return String(h||'').trim().toLowerCase(); });
-  // Column resolution — tolerate small header variants
-  var iCid = head.indexOf('company id');
-  if (iCid === -1) iCid = head.indexOf('cid');
-  var iName = head.indexOf('seller_name');
-  if (iName === -1) iName = head.indexOf('seller name');
-  if (iName === -1) iName = head.indexOf('customer');
-  var iTo = head.indexOf('to email');
-  if (iTo === -1) iTo = head.indexOf('to');
-  var iCc = head.indexOf('cc emails');
-  if (iCc === -1) iCc = head.indexOf('cc email');
-  if (iCc === -1) iCc = head.indexOf('cc');
+  // Column resolution — tolerate small header variants. Aliases listed
+  // in preference order; first hit wins.
+  var findCol = function(aliases){
+    for (var a = 0; a < aliases.length; a++){
+      var ix = head.indexOf(aliases[a]);
+      if (ix !== -1) return ix;
+    }
+    return -1;
+  };
+  var iCid  = findCol(['company id', 'cid', 'company_id', 'seller cid', 'seller_id', 'customer id', 'customer_id']);
+  var iName = findCol(['seller_name', 'seller name', 'customer name', 'customer', 'name']);
+  var iTo   = findCol(['to email', 'to', 'to_email', 'toemail', 'primary email', 'primary_email', 'email', 'email address', 'email_address', 'customer email']);
+  var iCc   = findCol(['cc emails', 'cc email', 'cc', 'cc_email', 'cc_emails', 'ccemails']);
+  // Publish the resolution result back onto counts so the caller (route) can
+  // surface it in the response when zero-rows-scanned looks suspicious.
+  emptyCounts.headerLc = head;
+  emptyCounts.columns  = { iCid: iCid, iName: iName, iTo: iTo, iCc: iCc };
   if (iCid === -1 || iTo === -1) {
-    throw new Error('Required columns not found in ' + legacyName + '. Need at least "Company ID" and "To Email"; got: ' + head.join(' | '));
+    throw new Error('Required columns not found in ' + legacyName + '. Need at least "Company ID" and "To Email"; got header: ' + head.join(' | '));
   }
+  counts.dataRows = emptyCounts.dataRows;
+  counts.header   = emptyCounts.header;
+  counts.headerLc = emptyCounts.headerLc;
+  counts.columns  = emptyCounts.columns;
   var counts = emptyCounts;
   var splitEmails = function(s){
     // Splitters: comma, semicolon, newline. Filter blanks + strip
@@ -4984,6 +4996,10 @@ function pocSyncFromContactsRoute_(e) {
   try {
     var actor = _pocActor_(e) || 'sync';
     var ss = SpreadsheetApp.openById(SHEET_ID);
+    // Pre-flight: what does the Customer_Contacts sheet look like from the
+    // backend's perspective? Captured for diagnostics — always returned so
+    // a "0 rows scanned" response is self-explanatory in the UI.
+    var diag = _pocContactsDiag_(ss);
     // 1) Upsert from Customer_Contacts (idempotent — matches on cid+email)
     var migrated = _pocMigrateFromLegacy_(ss, actor);
     // 2) Dedup pass over BOTH destination sheets. Runs after the upsert so
@@ -5003,11 +5019,67 @@ function pocSyncFromContactsRoute_(e) {
       ok: true,
       migrated: migrated,
       dedup: { poc: pocDedup, is: isDedup },
+      diag: diag,
       syncedAt: stamp,
       syncedBy: actor
     }, e);
   } catch (err) {
     return respond_({ ok: false, error: String(err && err.message || err) }, e);
+  }
+}
+
+/**
+ * Diagnostic snapshot of Customer_Contacts as the backend sees it —
+ * bundled into the sync response so the UI can explain a 0-rows-scanned
+ * result without guessing (wrong tab, missing header, misnamed columns,
+ * blank CID column, etc.). Fails soft: an inspection error is captured
+ * as a diag field, never propagates up.
+ */
+function _pocContactsDiag_(ss) {
+  var out = {
+    sheetName: 'Customer_Contacts',
+    sheetFound: false,
+    lastRow: 0,
+    lastCol: 0,
+    dataRows: 0,
+    header: [],
+    headerLc: [],
+    columns: { iCid: -1, iName: -1, iTo: -1, iCc: -1 },
+    sampleRows: []
+  };
+  try {
+    var sh = ss.getSheetByName('Customer_Contacts');
+    if (!sh) return out;
+    out.sheetFound = true;
+    out.lastRow = sh.getLastRow();
+    out.lastCol = sh.getLastColumn();
+    if (out.lastRow < 1 || out.lastCol < 1) return out;
+    var vals = sh.getRange(1, 1, out.lastRow, out.lastCol).getValues();
+    out.header   = vals[0].map(function(h){ return String(h == null ? '' : h); });
+    out.headerLc = out.header.map(function(h){ return h.trim().toLowerCase(); });
+    var findCol = function(aliases){
+      for (var a = 0; a < aliases.length; a++){
+        var ix = out.headerLc.indexOf(aliases[a]);
+        if (ix !== -1) return ix;
+      }
+      return -1;
+    };
+    out.columns.iCid  = findCol(['company id', 'cid', 'company_id', 'seller cid', 'seller_id', 'customer id', 'customer_id']);
+    out.columns.iName = findCol(['seller_name', 'seller name', 'customer name', 'customer', 'name']);
+    out.columns.iTo   = findCol(['to email', 'to', 'to_email', 'toemail', 'primary email', 'primary_email', 'email', 'email address', 'email_address', 'customer email']);
+    out.columns.iCc   = findCol(['cc emails', 'cc email', 'cc', 'cc_email', 'cc_emails', 'ccemails']);
+    out.dataRows = Math.max(0, vals.length - 1);
+    // Grab up to 3 sample data rows (post-header) so we can see whether
+    // the "email" column is actually populated for real data.
+    var sampleLimit = Math.min(3, vals.length - 1);
+    for (var s = 1; s <= sampleLimit; s++) {
+      var r = vals[s];
+      out.sampleRows.push(r.map(function(cell){ return String(cell == null ? '' : cell); }));
+    }
+    return out;
+  } catch (err) {
+    out.error = String(err && err.message || err);
+    return out;
   }
 }
 
