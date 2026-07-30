@@ -570,6 +570,10 @@ function doGet(e) {
   if (p.action === 'pocTemplate')     return pocTemplateRoute_(e);
   if (p.action === 'pocMigrateFromContacts') return pocMigrateFromContactsRoute_(e);
   if (p.action === 'pocMigrateStatus')       return pocMigrateStatusRoute_(e);
+  // Repeatable sync from Customer_Contacts — no one-time lock, and additionally
+  // sweeps Customer_POCs + Internal_Stakeholders to remove duplicate rows
+  // (same CID + lowercased email), keeping the most recently updated row.
+  if (p.action === 'pocSyncFromContacts')    return pocSyncFromContactsRoute_(e);
   // Internal Stakeholders routes (Fynd owners per CID, BCC'd on follow-ups)
   if (p.action === 'isList')          return isListRoute_(e);
   if (p.action === 'isSave')          return isSaveRoute_(e);
@@ -4964,6 +4968,119 @@ function _pocMigrateFromLegacy_(ss, actor) {
     isSh.getRange(isInsertStart, 1, isInsertRows.length, IS_HEADERS.length).setValues(isInsertRows);
   }
   return counts;
+}
+
+/**
+ * Repeatable Sync route — always re-runs the upsert from Customer_Contacts
+ * (no one-time lock) AND removes duplicate rows from Customer_POCs and
+ * Internal_Stakeholders. Duplicates are defined as rows sharing the same
+ * (CID, lowercased-email) key; the row with the most recent "Updated At"
+ * wins, ties broken by the higher sheet row (later paste wins).
+ *
+ * Callable at ?action=pocSyncFromContacts. Never blocks — safe to call any
+ * number of times from the UI's "Sync from Customer_Contacts" button.
+ */
+function pocSyncFromContactsRoute_(e) {
+  try {
+    var actor = _pocActor_(e) || 'sync';
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    // 1) Upsert from Customer_Contacts (idempotent — matches on cid+email)
+    var migrated = _pocMigrateFromLegacy_(ss, actor);
+    // 2) Dedup pass over BOTH destination sheets. Runs after the upsert so
+    //    freshly inserted duplicates from a re-run legacy tab are collapsed.
+    var pocSh = ensurePOCsTab_(ss);
+    var isSh  = ensureISTab_(ss);
+    var pocDedup = _pocDedupSheet_(pocSh, POC_HEADERS.length);
+    var isDedup  = _pocDedupSheet_(isSh,  IS_HEADERS.length);
+    // Refresh the timestamp lock too, so pocMigrateStatus still shows a
+    // "last synced at" — the UI no longer uses it as a hard lock, but any
+    // API consumer reading the timestamp gets a fresh value.
+    var stamp = _pocNowIso_();
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('POC_LEGACY_MIGRATION_DONE_AT', stamp);
+    props.setProperty('POC_LEGACY_MIGRATION_DONE_BY', actor);
+    return respond_({
+      ok: true,
+      migrated: migrated,
+      dedup: { poc: pocDedup, is: isDedup },
+      syncedAt: stamp,
+      syncedBy: actor
+    }, e);
+  } catch (err) {
+    return respond_({ ok: false, error: String(err && err.message || err) }, e);
+  }
+}
+
+/**
+ * Remove duplicate rows in-place. Duplicates share the same (CID, email-lc)
+ * key. When collapsing, we keep the row with the most recent "Updated At"
+ * value (column index 10 in both POC_HEADERS and IS_HEADERS — CID=0, Email=4,
+ * Updated At=10). If timestamps tie we keep the LAST occurrence (later row =
+ * later paste). Returns { scanned, kept, removed } counts.
+ */
+function _pocDedupSheet_(sh, colCount) {
+  var lastRow = sh.getLastRow();
+  if (lastRow < 3) return { scanned: Math.max(0, lastRow - 1), kept: Math.max(0, lastRow - 1), removed: 0 };
+  var vals = sh.getRange(2, 1, lastRow - 1, colCount).getValues();
+  var scanned = vals.length;
+  // Build best-per-key map. Track sheetRow (2-based) and updatedAt for
+  // tie-breaking. A blank Updated At is treated as epoch (older than any
+  // real ISO timestamp), so real data always wins over legacy blanks.
+  var CID_COL = 0, EMAIL_COL = 4, UPDATED_COL = 10;
+  var toEpoch = function(v){
+    if (v instanceof Date && !isNaN(v.getTime())) return v.getTime();
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return 0;
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  };
+  var best = {};      // key → { rowIdx (0-based within vals), ts }
+  for (var i = 0; i < vals.length; i++) {
+    var cid = String(vals[i][CID_COL] || '').trim();
+    var email = String(vals[i][EMAIL_COL] || '').trim().toLowerCase();
+    if (!cid || !email) continue;   // skip blank rows — they'll be preserved as-is
+    var key = cid + '|' + email;
+    var ts = toEpoch(vals[i][UPDATED_COL]);
+    var prev = best[key];
+    if (!prev || ts >= prev.ts) {
+      // >= (not >) means later duplicates with equal timestamp overwrite —
+      // matches "later paste wins" behaviour.
+      best[key] = { rowIdx: i, ts: ts };
+    }
+  }
+  // Decide which rows survive. Any row whose (cid,email) is non-blank AND
+  // whose rowIdx is NOT the winner for its key is a duplicate; drop it.
+  // Blank-key rows (missing cid or email) are always kept.
+  var keepMask = new Array(vals.length);
+  for (var j = 0; j < vals.length; j++) {
+    var cj = String(vals[j][CID_COL] || '').trim();
+    var ej = String(vals[j][EMAIL_COL] || '').trim().toLowerCase();
+    if (!cj || !ej) { keepMask[j] = true; continue; }
+    var k2 = cj + '|' + ej;
+    keepMask[j] = (best[k2] && best[k2].rowIdx === j);
+  }
+  var kept = [];
+  var removed = 0;
+  for (var m = 0; m < vals.length; m++) {
+    if (keepMask[m]) kept.push(vals[m]);
+    else removed++;
+  }
+  if (removed === 0) return { scanned: scanned, kept: kept.length, removed: 0 };
+  // Rewrite the whole data range in one shot: overwrite kept rows, then
+  // clear any surplus rows below (whitespace + values) so the trailing
+  // duplicates don't linger.
+  if (kept.length) {
+    sh.getRange(2, 1, kept.length, colCount).setValues(kept);
+  }
+  // Clear the tail (rows kept.length+2 .. lastRow) if we shrank.
+  var tailStart = 2 + kept.length;
+  var tailRows = lastRow - tailStart + 1;
+  if (tailRows > 0) {
+    // Prefer deleteRows over clearContent so downstream range references
+    // (LastRow, filters) reflect the true size of the table.
+    sh.deleteRows(tailStart, tailRows);
+  }
+  return { scanned: scanned, kept: kept.length, removed: removed };
 }
 
 // ===============================================================

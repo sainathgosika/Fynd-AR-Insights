@@ -1571,7 +1571,7 @@ HTML = r"""<!DOCTYPE html>
             <input type="file" id="pocUploadInput" accept=".xlsx,.xls,.csv" style="display:none" />
           </label>
           <button id="pocTemplateBtn" class="chip">📄 Download Template</button>
-          <button id="pocMigrateBtn" class="chip" title="Import legacy Customer_Contacts rows from the sheet. Safe to re-run — matches on (CID, email). @gofynd.com CCs route to Internal Stakeholders.">🔁 Migrate legacy</button>
+          <button id="pocMigrateBtn" class="chip" title="Sync from Customer_Contacts — upsert rows into Customer POCs / Internal Stakeholders (matched on CID + email) and sweep duplicates. Safe to re-run any time.">🔄 Sync from Customer_Contacts</button>
           <button id="pocRefreshBtn" class="chip">🔄</button>
         </div>
       </div>
@@ -8671,9 +8671,7 @@ async function pocLoad(){
   // deploy doesn't take out the customer-contacts table.
   const tbody = document.getElementById('pocTbody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr>';
-  // Fire-and-forget: refresh the one-time-migration lock state alongside
-  // the data load so the Migrate-legacy button reflects the backend truth.
-  pocRefreshMigrateState();
+  // (No migration lock to refresh — sync is repeatable.)
   try{
     // Fire both requests concurrently — no ordering dependency.
     const [pocRes, isRes] = await Promise.all([
@@ -8762,7 +8760,7 @@ function pocRenderTable(){
   if (!tbody) return;
   if (!pocState.filtered.length){
     tbody.innerHTML = '<tr><td colspan="11" class="px-3 py-6 text-center text-slate-500">No contacts match the current filters.</td></tr>';
-    if (countEl) countEl.textContent = `0 of ${pocState.rows.length} shown`;
+    if (countEl) countEl.textContent = `0 customers · 0 internal stakeholders`;
     return;
   }
   const rows = pocState.filtered.map((r, i) => {
@@ -8794,9 +8792,21 @@ function pocRenderTable(){
     </tr>`;
   }).join('');
   tbody.innerHTML = rows;
-  const custCount = pocState.filtered.filter(r => r._kind !== 'internal').length;
-  const intCount  = pocState.filtered.length - custCount;
-  if (countEl) countEl.textContent = `${pocState.filtered.length} of ${pocState.rows.length} shown · ${custCount} customer · ${intCount} internal`;
+  // Distinct-CID counts — the row count is noisy because a single customer
+  // often has multiple POCs. Show unique customer / stakeholder CIDs instead.
+  const custCidSet = new Set();
+  const intCidSet  = new Set();
+  for (const r of pocState.filtered){
+    const cid = String(r.cid || '').trim();
+    if (!cid) continue;
+    if (r._kind === 'internal') intCidSet.add(cid);
+    else                        custCidSet.add(cid);
+  }
+  const custDistinct = custCidSet.size;
+  const intDistinct  = intCidSet.size;
+  const custLbl = custDistinct === 1 ? 'customer' : 'customers';
+  const intLbl  = intDistinct  === 1 ? 'internal stakeholder' : 'internal stakeholders';
+  if (countEl) countEl.textContent = `${custDistinct} ${custLbl} · ${intDistinct} ${intLbl}`;
   // Edit/Delete route to the correct backend based on _kind so the merged
   // table can drive both the customer-POC and internal-stakeholder flows.
   tbody.querySelectorAll('.poc-edit').forEach(btn => btn.addEventListener('click', ()=>{
@@ -9115,93 +9125,44 @@ function pocDownloadTemplate(){
 }
 
 // -----------------------------------------------------------------------------
-// One-TIME migration from the legacy Customer_Contacts sheet.
+// Repeatable Sync from the Customer_Contacts sheet.
 //
-// Calls the deployed Apps Script route action=pocMigrateFromContacts, which
-// walks Customer_Contacts and upserts:
-//   • To emails      → Customer_POCs (Priority=Primary)
-//   • CC emails      → Customer_POCs (Priority=CC)  — except…
-//   • @gofynd.com CC → Internal_Stakeholders (Priority=CC)  ← Fynd owners
+// Calls the deployed Apps Script route action=pocSyncFromContacts, which:
+//   • Walks Customer_Contacts and UPSERTS every (To/CC) email onto:
+//       – Customer_POCs (Priority=Primary for To, CC for CC)
+//       – Internal_Stakeholders for @gofynd.com CCs (Fynd owners)
+//   • Then dedups Customer_POCs + Internal_Stakeholders on (CID, email-lc),
+//     keeping the most recently updated row when duplicates exist.
 //
-// This is a ONE-TIME activity — the backend locks itself after the first
-// successful run via a Script Properties marker. The UI reflects that state
-// by disabling the button and labeling it with the completed timestamp.
-// (Re-runs are still possible from the Apps Script editor by calling
-// migrateContactsToPOCs() directly if a genuine re-import is ever needed.)
+// Upsert-only — any manually-added rows in Customer_POCs / Internal_Stakeholders
+// that DON'T exist in Customer_Contacts are preserved untouched. The button is
+// safe to press any number of times.
 // -----------------------------------------------------------------------------
-const pocMigrateState = { done: false, completedAt: '', completedBy: '' };
-
-function _pocMigrateApplyLock(){
-  const btn = document.getElementById('pocMigrateBtn');
-  if (!btn) return;
-  if (pocMigrateState.done){
-    btn.disabled = true;
-    btn.style.opacity = '0.65';
-    btn.style.cursor = 'not-allowed';
-    const when = pocMigrateState.completedAt || '';
-    btn.textContent = '✓ Migrated' + (when ? (' · ' + when.slice(0, 10)) : '');
-    btn.title = 'Legacy Customer_Contacts migration completed'
-      + (when ? (' on ' + when) : '')
-      + (pocMigrateState.completedBy ? (' by ' + pocMigrateState.completedBy) : '')
-      + '. One-time activity — cannot be re-run from the UI.';
-  } else {
-    btn.disabled = false;
-    btn.style.opacity = '';
-    btn.style.cursor = '';
-    btn.textContent = '🔁 Migrate legacy';
-    btn.title = 'Import legacy Customer_Contacts rows from the sheet (one-time). @gofynd.com CCs route to Internal Stakeholders.';
-  }
-}
-
-async function pocRefreshMigrateState(){
-  try {
-    const res = await _fuJsonp('pocMigrateStatus', {});
-    if (res && res.ok){
-      pocMigrateState.done        = Boolean(res.done);
-      pocMigrateState.completedAt = String(res.completedAt || '');
-      pocMigrateState.completedBy = String(res.completedBy || '');
-    }
-  } catch(_){ /* soft-fail: leave button enabled if status route is unreachable */ }
-  _pocMigrateApplyLock();
-}
-
-async function pocMigrateLegacy(){
+async function pocSyncFromContacts(){
   const btn = document.getElementById('pocMigrateBtn');
   const bar = document.getElementById('pocStatusBar');
-  // Hard client-side guard — even if someone force-enables the button,
-  // refuse to hit the backend once the marker is set.
-  if (pocMigrateState.done){
-    alert('Legacy migration has already been completed'
-      + (pocMigrateState.completedAt ? (' on ' + pocMigrateState.completedAt) : '')
-      + '. This is a one-time activity.');
-    return;
-  }
+  const originalLabel = btn ? btn.textContent : '';
   const ok = confirm(
-    'Import contacts from the legacy Customer_Contacts sheet?\n\n' +
+    'Sync contacts from the Customer_Contacts sheet?\n\n' +
     '• To addresses  → Customer POCs (Primary)\n' +
     '• CC addresses  → Customer POCs (CC)\n' +
     '• @gofynd.com CCs → Internal Stakeholders (CC)\n\n' +
-    'This is a ONE-TIME activity — the button will lock after a successful run.'
+    'Existing rows are updated in place (matched by CID + email). Manual\n' +
+    'additions to Customer_POCs / Internal_Stakeholders are preserved.\n' +
+    'Duplicates on (CID + email) are collapsed after the upsert.'
   );
   if (!ok) return;
-  if (btn){ btn.disabled = true; btn.textContent = '⏳ Migrating…'; }
-  if (bar) bar.innerHTML = '<span style="color:#64748b">Migrating legacy Customer_Contacts… (this can take a few minutes on large sheets)</span>';
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+  if (bar) bar.innerHTML = '<span style="color:#64748b">Syncing from Customer_Contacts… (may take up to a couple of minutes on large sheets)</span>';
   try {
-    // Bulk migration reads/writes both Customer_POCs + Internal_Stakeholders
-    // in a batched pass, but on very large legacy tabs it can still take a
-    // couple of minutes end-to-end. Bump the client-side timeout well past
-    // the default 60 s so the UI doesn't reject a still-running run.
-    const res = await _fuJsonp('pocMigrateFromContacts', {}, 300000);
+    // Sync can take a while on big legacy tabs — same reason we bumped the
+    // migration timeout. 5 minutes is well past the batched worker's normal
+    // runtime but still short of Apps Script's own 6-min execution ceiling.
+    const res = await _fuJsonp('pocSyncFromContacts', {}, 300000);
     if (!res || res.ok === false){
-      const msg = (res && res.error) ? res.error : 'Migration failed';
-      if (bar) bar.innerHTML = '<span style="color:#b91c1c">Migration failed: ' + _pocEsc(msg) + '</span>';
-      alert('Migration failed: ' + msg);
-      // If the backend already had the marker set, respect it in the UI too.
-      if (res && res.alreadyMigrated){
-        pocMigrateState.done = true;
-        pocMigrateState.completedAt = String(res.completedAt || '');
-        pocMigrateState.completedBy = String(res.completedBy || '');
-      }
+      const msg = (res && res.error) ? res.error : 'Sync failed';
+      if (bar) bar.innerHTML = '<span style="color:#b91c1c">Sync failed: ' + _pocEsc(msg) + '</span>';
+      alert('Sync failed: ' + msg);
       return;
     }
     const m = res.migrated || {};
@@ -9214,36 +9175,36 @@ async function pocMigrateLegacy(){
     const pocUpd  = Number(m.pocUpdates || 0);
     const isIns   = Number(m.isInserts  || 0);
     const isUpd   = Number(m.isUpdates  || 0);
+    const dd      = res.dedup || {};
+    const pocDup  = Number((dd.poc && dd.poc.removed) || 0);
+    const isDup   = Number((dd.is  && dd.is.removed)  || 0);
     const parts = [
-      '<span style="color:#0d9488;font-weight:600">✓ Migration complete.</span>',
+      '<span style="color:#0d9488;font-weight:600">✓ Sync complete.</span>',
       total + ' rows scanned',
       ins + ' inserted',
       upd + ' updated',
       skp + ' skipped',
-      err ? ('<span style="color:#b91c1c">' + err + ' errors</span>') : ''
+      err ? ('<span style="color:#b91c1c">' + err + ' errors</span>') : '',
+      (pocDup + isDup) ? ((pocDup + isDup) + ' duplicates removed') : ''
     ].filter(Boolean);
     const breakdown = '<div class="text-[11px] text-slate-500">Customer POCs — ' +
-      pocIns + ' inserted, ' + pocUpd + ' updated · Internal Stakeholders — ' +
-      isIns + ' inserted, ' + isUpd + ' updated</div>';
+      pocIns + ' inserted, ' + pocUpd + ' updated' +
+      (pocDup ? (', ' + pocDup + ' duplicates removed') : '') +
+      ' · Internal Stakeholders — ' +
+      isIns + ' inserted, ' + isUpd + ' updated' +
+      (isDup ? (', ' + isDup + ' duplicates removed') : '') +
+      '</div>';
     if (bar) bar.innerHTML = parts.join(' · ') + breakdown;
-    alert(
-      'Migration complete.\n' +
-      'Rows scanned: ' + total + '\n' +
-      'Customer POCs — inserted: ' + pocIns + ', updated: ' + pocUpd + '\n' +
-      'Internal Stakeholders — inserted: ' + isIns + ', updated: ' + isUpd + '\n' +
-      'Skipped: ' + skp + '  ·  Errors: ' + err +
-      '\n\nThe migration button is now locked (one-time activity).'
-    );
-    pocMigrateState.done = true;
-    pocMigrateState.completedAt = String(res.completedAt || _pocNowIsoClient());
-    pocMigrateState.completedBy = String(res.completedBy || '');
     await pocLoad();
   } catch(ex) {
     const msg = (ex && ex.message) || String(ex);
-    if (bar) bar.innerHTML = '<span style="color:#b91c1c">Migration error: ' + _pocEsc(msg) + '</span>';
-    alert('Migration error: ' + msg);
+    if (bar) bar.innerHTML = '<span style="color:#b91c1c">Sync error: ' + _pocEsc(msg) + '</span>';
+    alert('Sync error: ' + msg);
   } finally {
-    _pocMigrateApplyLock();
+    if (btn){
+      btn.disabled = false;
+      btn.textContent = originalLabel || '🔄 Sync from Customer_Contacts';
+    }
   }
 }
 
@@ -9447,7 +9408,7 @@ function wirePOCs(){
   const tplBtn = document.getElementById('pocTemplateBtn');
   if (tplBtn) tplBtn.addEventListener('click', pocDownloadTemplate);
   const mgBtn = document.getElementById('pocMigrateBtn');
-  if (mgBtn) mgBtn.addEventListener('click', pocMigrateLegacy);
+  if (mgBtn) mgBtn.addEventListener('click', pocSyncFromContacts);
   const rfBtn = document.getElementById('pocRefreshBtn');
   if (rfBtn) rfBtn.addEventListener('click', pocLoad);
   const upl = document.getElementById('pocUploadInput');
