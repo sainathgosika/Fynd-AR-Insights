@@ -8,10 +8,17 @@ build:
 
 env:
   PORT: "8080"
+  # AR_LIVE_URL — the Apps Script /exec URL that serves live sheet data.
+  # When set, app.py auto-injects window.__DATA_URL__ into the dashboard so
+  # every Boltic visitor connects to live data on first paint (no "Configure
+  # live data source" prompt). Set this in the Boltic dashboard's
+  # Environment Variables section — do NOT commit the actual URL here.
+  AR_LIVE_URL: ""
 
 serverlessConfig:
   Env:
     PORT: "8080"
+    AR_LIVE_URL: ""
   PortMap:
     - Name: "http"
       Port: 8080

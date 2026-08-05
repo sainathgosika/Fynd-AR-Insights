@@ -4,15 +4,33 @@ The dashboard HTML is generated at Docker build time by build_v4.py and
 placed in ./build/Fynd_Receivables_Insights.html.
 
 Boltic serverless sets PORT (default 8080) and probes / for a 200 response.
+
+Live-data auto-connect
+----------------------
+When AR_LIVE_URL is set in the environment (Boltic → Environment Variables),
+this server rewrites the response HTML to inject:
+
+    window.__DATA_URL__            = <that URL>
+    window.__SERVED_BY_APPS_SCRIPT__ = true
+
+...just before </head>. That means every visitor to the Boltic URL is
+auto-connected to live data on first paint — no "Configure live data
+source" prompt, no manual URL entry. The variable is intentionally
+optional so the container still boots even if the URL isn't set yet.
 """
 
+import html
 import os
-from flask import Flask, Response, send_file, jsonify
+from flask import Flask, Response, jsonify, send_file
 
 HERE      = os.path.dirname(os.path.abspath(__file__))
 BUILD_DIR = os.environ.get("AR_OUT_DIR", os.path.join(HERE, "build"))
 FULL_HTML = os.path.join(BUILD_DIR, "Fynd_Receivables_Insights.html")
 SLIM_HTML = os.path.join(BUILD_DIR, "Fynd_Receivables_Insights__slim.html")
+
+# The Apps Script /exec URL every visitor of this server should talk to.
+# Set in boltic.yaml (Environment Variables → AR_LIVE_URL).
+LIVE_URL = (os.environ.get("AR_LIVE_URL") or "").strip()
 
 app = Flask(__name__)
 
@@ -26,6 +44,34 @@ def _pick_dashboard() -> str:
     return ""
 
 
+def _inject_live_url(html_text: str) -> str:
+    """Splice `window.__DATA_URL__` into the dashboard so shared viewers auto-connect.
+
+    Falls back to the untouched HTML when AR_LIVE_URL isn't set — in that mode
+    the app behaves exactly like a local file: viewers see the "Live Off" pill
+    until an admin opens Settings and pastes the URL by hand.
+    """
+    if not LIVE_URL:
+        return html_text
+    # html.escape guards against HTML injection via the env var; the JS side
+    # sees a plain string literal.
+    safe_url = html.escape(LIVE_URL, quote=True)
+    injected = (
+        "<script>"
+        f"window.__DATA_URL__ = '{safe_url}';"
+        "window.__SERVED_BY_APPS_SCRIPT__ = true;"
+        "</script>"
+    )
+    # Insert immediately before </head> so it's parsed before the main app JS
+    # runs. Case-insensitive replacement, one-shot.
+    lower = html_text.lower()
+    idx = lower.find("</head>")
+    if idx == -1:
+        # Odd: no </head>? Prepend as a last resort so behaviour still holds.
+        return injected + html_text
+    return html_text[:idx] + injected + html_text[idx:]
+
+
 @app.route("/")
 def index():
     path = _pick_dashboard()
@@ -37,7 +83,13 @@ def index():
             status=500,
             mimetype="text/plain",
         )
-    # send_file streams the ~4 MB file and sets Content-Type: text/html
+    # When AR_LIVE_URL is set, splice the URL into the HTML so shared
+    # viewers auto-connect without visiting Settings. Otherwise stream the
+    # file untouched (cheaper — no read into memory).
+    if LIVE_URL:
+        with open(path, "r", encoding="utf-8") as f:
+            body = _inject_live_url(f.read())
+        return Response(body, mimetype="text/html")
     return send_file(path, mimetype="text/html")
 
 
@@ -48,6 +100,7 @@ def health():
         status="ok" if path else "degraded",
         dashboard=os.path.basename(path) if path else None,
         build_dir=BUILD_DIR,
+        live_url_configured=bool(LIVE_URL),
     )
 
 

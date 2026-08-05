@@ -240,15 +240,21 @@ HTML = r"""<!DOCTYPE html>
   .brand-btn .b-name{font-weight:700;font-size:15px;letter-spacing:-.01em;color:var(--c-accent);line-height:1.05;}
   .brand-btn .b-sub{font-size:9.5px;font-weight:600;letter-spacing:.05em;color:var(--c-muted);text-transform:uppercase;margin-top:2px;}
   /* Topbar search — kept as is */
-  .topbar-search{position:relative;flex:1 1 320px;max-width:480px;}
+  /* Global search — now grows to fill the row width so it's easier to see and use. */
+  .topbar-search{position:relative;flex:1 1 480px;min-width:280px;max-width:640px;}
   .topbar-search input{
     width:100%;border:1px solid var(--c-line);border-radius:10px;
-    background:#fff;padding:8px 12px 8px 34px;font-size:13px;color:var(--c-ink);
+    background:#fff;padding:9px 12px 9px 36px;font-size:13.5px;color:var(--c-ink);
+    box-shadow:0 1px 2px rgba(15,23,42,.03);
+    transition:border-color .15s, box-shadow .15s;
   }
+  .topbar-search input:focus{outline:none;border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.18);}
   .topbar-search::before{
     content:"🔍";position:absolute;left:11px;top:50%;transform:translateY(-50%);
-    font-size:12px;opacity:.55;pointer-events:none;
+    font-size:13px;opacity:.55;pointer-events:none;
   }
+  /* Subline below the "Receivables Insights" title */
+  .hdr-subline{font-variant-numeric:tabular-nums;}
 
   /* Override Tailwind palette to the Fynd-decent scheme */
   .text-emerald-600, .text-green-600 { color:#6b8e5a !important; }
@@ -262,10 +268,14 @@ HTML = r"""<!DOCTYPE html>
   /* Top-right icon-only buttons with custom hover tooltips */
   .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--c-soft);color:var(--c-accent);border:1px solid var(--c-line);cursor:pointer;font-size:15px;transition:all .15s;position:relative;}
   .icon-btn:hover{background:#e8e1d5;color:var(--c-ink);}
-  /* Hard Refresh spin animation while reload is in flight */
+  /* Hard Refresh spin animation while reload is in flight.
+     IMPORTANT: only the inner <span class="hr-icon"> spins — never the button
+     itself. If the button rotates, the CSS-based tooltip (::after pseudo)
+     rotates with it and the label swings around the screen. */
   @keyframes hrSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
   #btnHardRefresh{font-size:17px;font-weight:600;line-height:1;}
-  #btnHardRefresh.hr-spin, #btnHardRefresh .hr-spin{animation:hrSpin .9s linear infinite;display:inline-block;}
+  #btnHardRefresh .hr-icon{display:inline-block;transform-origin:center;}
+  #btnHardRefresh.hr-spin .hr-icon{animation:hrSpin .9s linear infinite;}
   .icon-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;background:var(--c-ink);color:#fff;padding:5px 10px;font-size:11px;font-weight:400;border-radius:6px;white-space:nowrap;z-index:60;box-shadow:0 4px 12px rgba(31,42,46,.18);pointer-events:none;}
   .icon-btn[data-tip]:hover::before{content:'';position:absolute;top:calc(100% + 1px);right:12px;border:5px solid transparent;border-bottom-color:var(--c-ink);z-index:60;pointer-events:none;}
   .tab-item[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);background:#0f172a;color:#fff;padding:6px 10px;font-size:11px;font-weight:400;border-radius:6px;white-space:nowrap;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.2);}
@@ -524,18 +534,23 @@ HTML = r"""<!DOCTYPE html>
   #chgpwModal .cp-btn-secondary{background:#f5f2ed;color:#2c4a52;border-color:#e8e1d5;}
   #chgpwModal .cp-msg{font-size:11.5px;margin-top:10px;min-height:14px;}
   #chgpwModal .cp-rules{font-size:11px;color:#6b6660;margin-top:6px;line-height:1.4;}
-  /* Header sign-out + change-password controls */
-  #authHdrWrap{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--c-muted);}
+  /* Header profile chip — pinned to the far right of the top bar.
+     Rendered as a rounded pill so the signed-in user's identity stands out. */
+  #authHdrWrap{
+    display:flex;align-items:center;gap:6px;font-size:11px;color:var(--c-muted);
+    background:#f5f2ed;border:1px solid #e8e1d5;border-radius:9999px;
+    padding:3px 4px 3px 10px;margin-left:4px;
+  }
   #authHdrWrap .auth-link{
-    background:none;border:none;color:#2c4a52;cursor:pointer;font-size:11px;font-weight:600;text-decoration:underline;padding:0;
+    background:none;border:none;color:#2c4a52;cursor:pointer;font-size:11px;font-weight:600;text-decoration:underline;padding:0 4px;
   }
   #authHdrWrap .auth-link:hover{color:#5b7a82;}
   #authHdrWrap .auth-btn{
-    background:#f0ebe3;color:#2c4a52;border:1px solid #e8e1d5;border-radius:6px;
+    background:#2c4a52;color:#fff;border:1px solid #2c4a52;border-radius:9999px;
     padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;
   }
-  #authHdrWrap .auth-btn:hover{background:#e8e1d5;}
-  #authWho{font-weight:600;color:#2c4a52;}
+  #authHdrWrap .auth-btn:hover{background:#1f2a2e;}
+  #authWho{font-weight:600;color:#2c4a52;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 </style>
 </head>
 <body class="min-h-screen">
@@ -819,24 +834,28 @@ HTML = r"""<!DOCTYPE html>
 <header class="sticky-header">
   <div class="max-w-[1600px] mx-auto px-6 pt-4 pb-3">
     <div class="flex items-center justify-between gap-4 mb-3">
-      <div class="flex items-center gap-3 flex-1">
+      <!-- LEFT: brand + subline stacked (subline sits BELOW "Receivables Insights") -->
+      <div class="flex items-center gap-3">
         <!-- Fynd brand button: click → jump to Overview -->
         <button id="btnBrandHome" class="brand-btn" title="Back to Overview">
           <img src="https://cdn.brandfetch.io/id7q4N5Xqp/w/3750/h/3750/theme/dark/idNy5EIX-i.png?c=1bxid64Mup7aczewSAYMX&t=1750146541811"
                alt="Fynd"
                onerror="this.onerror=null;this.outerHTML='<div style=&quot;font-weight:700;font-size:18px;color:#2c4a52;letter-spacing:-.02em&quot;>fynd</div>'"/>
           <div class="text-left">
-            <div class="b-name">Receivables</div>
-            <div class="b-sub">Insights</div>
+            <div class="flex items-baseline gap-1.5">
+              <div class="b-name">Receivables</div>
+              <div class="b-sub">Insights</div>
+            </div>
+            <!-- Subline now lives *inside* the brand block, directly under the title -->
+            <div class="text-[11px] hdr-subline mt-0.5" style="color:var(--c-muted);font-weight:500;letter-spacing:.01em" id="hdrMeta">AR Control Tower · Last refresh: <span id="lastRefresh">—</span> · <span id="hdrCount">0</span> records</div>
           </div>
         </button>
-        <div class="hidden md:block">
-          <div class="text-[11px]" style="color:var(--c-muted)" id="hdrMeta">AR Control Tower · Last refresh: <span id="lastRefresh">—</span> · <span id="hdrCount">0</span> records</div>
-        </div>
-        <div class="topbar-search hidden md:block">
-          <input id="globalSearch" placeholder="Search customers, invoices, BUs…" autocomplete="off"/>
-        </div>
       </div>
+      <!-- CENTER: expanded search takes all available room -->
+      <div class="topbar-search hidden md:block flex-1 max-w-[640px]">
+        <input id="globalSearch" placeholder="Search customers, invoices, BUs…" autocomplete="off"/>
+      </div>
+      <!-- RIGHT: toolbar chips + profile pinned to top-right -->
       <div class="flex items-center gap-2">
         <div class="rounded-lg p-0.5 inline-flex" id="currencySeg" data-tip="Display currency unit" style="background:var(--c-soft);position:relative;">
           <button class="seg-btn active" data-cu="auto">Auto</button>
@@ -846,19 +865,21 @@ HTML = r"""<!DOCTYPE html>
           <button class="seg-btn" data-cu="cr">Cr</button>
         </div>
         <div class="flex items-center gap-1.5">
-          <div id="authHdrWrap" style="display:none">
-            <span id="authWho" title="Signed-in user">—</span>
-            <button type="button" id="authChangePwBtn" class="auth-link" title="Change password">Change password</button>
-            <button type="button" id="authLogoutBtn" class="auth-btn" title="Sign out of the dashboard">Sign out</button>
-          </div>
           <button id="btnLiveSync" class="icon-btn" data-tip="Pull latest from Google Sheet">
             <span id="liveDot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#cbd5e1"></span>
             <span id="liveLabel" style="display:none"></span>
           </button>
           <span id="cacheStatePill" style="display:none;font-size:11px;padding:3px 8px;border-radius:9999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;">Showing cached data · refreshing…</span>
-          <button id="btnHardRefresh" class="icon-btn" data-tip="Hard Refresh — reload live data from Google Sheets">↻</button>
-          <button id="btnPrint"   class="icon-btn" data-tip="Print or save as PDF">🖨</button>
-          <button id="btnSettings" class="icon-btn" data-tip="Configure live data source">⚙</button>
+          <button id="btnHardRefresh" class="icon-btn" data-tip="Hard Refresh — reload live data from Google Sheets"><span class="hr-icon">↻</span></button>
+          <!-- Print + Configure are admin-only; applyAccessControl() hides them for non-admin viewers -->
+          <button id="btnPrint"   class="icon-btn admin-only-btn" data-tip="Print or save as PDF" style="display:none">🖨</button>
+          <button id="btnSettings" class="icon-btn admin-only-btn" data-tip="Configure live data source" style="display:none">⚙</button>
+          <!-- Profile chip pinned to the far right — shows whoever is logged in -->
+          <div id="authHdrWrap" style="display:none">
+            <span id="authWho" title="Signed-in user">—</span>
+            <button type="button" id="authChangePwBtn" class="auth-link" title="Change password">Change password</button>
+            <button type="button" id="authLogoutBtn" class="auth-btn" title="Sign out of the dashboard">Sign out</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1571,7 +1592,7 @@ HTML = r"""<!DOCTYPE html>
             <input type="file" id="pocUploadInput" accept=".xlsx,.xls,.csv" style="display:none" />
           </label>
           <button id="pocTemplateBtn" class="chip">📄 Download Template</button>
-          <button id="pocMigrateBtn" class="chip" title="Sync from Customer_Contacts — upsert rows into Customer POCs / Internal Stakeholders (matched on CID + email) and sweep duplicates. Safe to re-run any time.">🔄 Sync from Customer_Contacts</button>
+          <button id="pocMigrateBtn" class="chip" title="Sync from Customer_Contacts — insert only NEW rows into Customer POCs / Internal Stakeholders (matched on CID + email). Already-synced rows are left untouched so manual edits (role, phone, priority, notes) are preserved. Safe to re-run any time.">🔄 Sync from Customer_Contacts</button>
           <button id="pocRefreshBtn" class="chip">🔄</button>
         </div>
       </div>
@@ -4135,8 +4156,10 @@ function wireHardRefresh(){
   const btn = document.getElementById('btnHardRefresh');
   if(!btn) return;
   btn.addEventListener('click', async ()=>{
-    const icon = btn.querySelector('.hr-icon') || btn;
-    icon.classList.add('hr-spin');
+    // Toggle .hr-spin on the BUTTON — the CSS selector
+    //   #btnHardRefresh.hr-spin .hr-icon { animation: hrSpin ... }
+    // scopes the rotation to the icon span so the tooltip stays put.
+    btn.classList.add('hr-spin');
     btn.setAttribute('data-tip', 'Hard Refresh — reloading live data from Google Sheets…');
     // ---- 1. Wipe every layer of client-side cache so nothing stale can
     //         bleed into the next paint. ----
@@ -4180,7 +4203,7 @@ function wireHardRefresh(){
       try { refresh(); paintPDD(); paintBank(); } catch(_){}
     }
     setTimeout(()=>{
-      icon.classList.remove('hr-spin');
+      btn.classList.remove('hr-spin');
       btn.setAttribute('data-tip', 'Hard Refresh — reload live data from Google Sheets');
     }, 1200);
   });
@@ -5448,7 +5471,16 @@ async function liveFetch(showAlerts){
   //                              (so team viewers don't need to configure anything)
   //   2. localStorage          ← when running as a local file:// HTML
   const url = (window.__DATA_URL__ || localStorage.getItem(LS_KEY_URL) || '').trim();
-  if(!url){ if(showAlerts) alert('No Web App URL configured. Open Settings to add one.'); return; }
+  if(!url){
+    // Only admins have the Settings modal — showing the "open Settings" alert
+    // to a shared viewer is confusing (they can't open it). Silently show
+    // "Live Off" for non-admin viewers; admin still gets the actionable alert.
+    if (showAlerts) {
+      const isAdmin = !!(window.acmState && window.acmState.isAdmin);
+      if (isAdmin) alert('No Web App URL configured. Open Settings to add one.');
+    }
+    return;
+  }
   setSyncStatus('Syncing…', false);
   try {
     // LIVE-ONLY: append nocache=1 so — even if the backend cache is ever
@@ -5594,6 +5626,7 @@ function wireSettings(){
     if(!u) return alert('Paste a Web App URL first.');
     localStorage.setItem(LS_KEY_URL, u);
     localStorage.setItem(LS_KEY_INT, iv);
+    try { logAudit('settings.save', { intervalSec: iv, urlHost: (function(){try{return new URL(u).host;}catch(_){return '';}})() }); } catch(_){}
     close();
     await liveFetch(true);
     startLiveTimer();
@@ -7904,6 +7937,7 @@ async function soaSendEmail(){
       fromName: SOA_SENDER_NAME
     });
     if (res && res.ok){
+      try { logAudit('statement.email', { cid: soaState.cid, custName: soaState.custName, to: to, cc: cc, fromDate: soaState.fromDate, toDate: soaState.toDate }); } catch(_){}
       // Backend should echo back the actual sender it used; fall back to the
       // alias we requested so the user always sees a "from" address.
       const sender = (res.sender || res.from || SOA_SENDER_EMAIL);
@@ -8358,6 +8392,7 @@ async function fuConfirmSend(){
       if (busCsv) p.bus = busCsv;
       result = await _fuJsonp('sendBulk', p);
     }
+    try { logAudit('followup.send', { mode: mode, cids: cids.length, templateId: templateId || '', bus: busCsv || '', force: !!force, ok: !!(result && result.ok), successCount: (result && result.successCount) || 0, total: (result && result.total) || cids.length }); } catch(_){}
     const ok = result.ok ? (result.successCount !== undefined ? `${result.successCount}/${result.total} sent successfully` : 'Email sent') : (result.error || 'Failed');
     document.getElementById('fuModalBody').innerHTML = `<div class="bg-white border border-slate-200 rounded p-4">
       <div class="text-[14px] font-semibold ${result.ok?'text-green-700':'text-red-700'} mb-2">${result.ok?'✓':'✗'} ${ok}</div>
@@ -8403,11 +8438,17 @@ async function fuOpenBulkSend(){
   document.getElementById('fuModal').style.display = 'flex';
 }
 
-function fuDownloadExcel(){
+async function fuDownloadExcel(){
   const checked = new Set(fuCheckedCids());
   const subset = fuState.invoices.filter(r => checked.has(r.cid));
   if(!subset.length){ alert('No checked rows'); return; }
-  if(typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+  // Lazy-load ExcelJS from CDN on first export — the library is not
+  // in the initial bundle. Every deployment host (Apps Script, Boltic,
+  // static file, etc.) must be able to fetch it, so we ALWAYS await.
+  if(typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if(typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Outstanding Follow-up');
   ws.columns = [
@@ -8994,6 +9035,7 @@ async function pocSave(){
       return;
     }
     pocCloseModal();
+    try { logAudit('poc.save', { cid: cid, customer: customerSaves, internal: internalSaves }); } catch(_){}
     // Explicit persistence confirmation — the user asked to be sure every
     // Add-Contact click writes to the sheet, so we surface a status-bar toast
     // summarising exactly what was saved and where.
@@ -9024,14 +9066,18 @@ async function pocDelete(rec){
   try{
     const res = await _fuJsonp('pocDelete', { cid: rec.cid, email: rec.email });
     if (!res || !res.ok){ alert('Delete failed: ' + _pocExplainBadRes(res, 'pocDelete').replace(/<[^>]+>/g,'')); return; }
+    try { logAudit('poc.delete', { cid: rec.cid, email: rec.email }); } catch(_){}
     await pocLoad();
   }catch(ex){
     alert('Delete failed: ' + ((ex && ex.message) || String(ex)));
   }
 }
 
-function pocDownloadExcel(){
-  if (typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+async function pocDownloadExcel(){
+  if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if (typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Customer POCs');
   ws.columns = [
@@ -9068,8 +9114,11 @@ function pocDownloadExcel(){
   });
 }
 
-function pocDownloadTemplate(){
-  if (typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+async function pocDownloadTemplate(){
+  if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if (typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Template');
   // Unified template — one file feeds BOTH customer POCs and internal
@@ -9128,28 +9177,31 @@ function pocDownloadTemplate(){
 // Repeatable Sync from the Customer_Contacts sheet.
 //
 // Calls the deployed Apps Script route action=pocSyncFromContacts, which:
-//   • Walks Customer_Contacts and UPSERTS every (To/CC) email onto:
+//   • Walks Customer_Contacts and INSERTS every NEW (To/CC) email onto:
 //       – Customer_POCs (Priority=Primary for To, CC for CC)
 //       – Internal_Stakeholders for @gofynd.com CCs (Fynd owners)
+//   • Rows that already exist on (CID + email) are left UNTOUCHED — this
+//     preserves any manual edits (role, phone, priority, notes) users made
+//     after the initial sync.
 //   • Then dedups Customer_POCs + Internal_Stakeholders on (CID, email-lc),
 //     keeping the most recently updated row when duplicates exist.
 //
-// Upsert-only — any manually-added rows in Customer_POCs / Internal_Stakeholders
-// that DON'T exist in Customer_Contacts are preserved untouched. The button is
-// safe to press any number of times.
+// Insert-only — safe to press any number of times. Only genuinely new contacts
+// from Customer_Contacts flow through; nothing that has already been synced
+// (or was added manually) is overwritten.
 // -----------------------------------------------------------------------------
 async function pocSyncFromContacts(){
   const btn = document.getElementById('pocMigrateBtn');
   const bar = document.getElementById('pocStatusBar');
   const originalLabel = btn ? btn.textContent : '';
   const ok = confirm(
-    'Sync contacts from the Customer_Contacts sheet?\n\n' +
+    'Sync NEW contacts from the Customer_Contacts sheet?\n\n' +
     '• To addresses  → Customer POCs (Primary)\n' +
     '• CC addresses  → Customer POCs (CC)\n' +
     '• @gofynd.com CCs → Internal Stakeholders (CC)\n\n' +
-    'Existing rows are updated in place (matched by CID + email). Manual\n' +
-    'additions to Customer_POCs / Internal_Stakeholders are preserved.\n' +
-    'Duplicates on (CID + email) are collapsed after the upsert.'
+    'Insert-only — rows already synced (matched on CID + email) are left\n' +
+    'untouched so any manual edits (role, phone, priority, notes) are preserved.\n' +
+    'Only brand-new contacts are added. Safe to press repeatedly.'
   );
   if (!ok) return;
   if (btn){ btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
@@ -9168,30 +9220,30 @@ async function pocSyncFromContacts(){
     const m = res.migrated || {};
     const total   = Number(m.total    || 0);
     const ins     = Number(m.inserts  || 0);
-    const upd     = Number(m.updates  || 0);
+    const already = Number(m.alreadySynced || 0);
     const skp     = Number(m.skipped  || 0);
     const err     = Number(m.errors   || 0);
     const pocIns  = Number(m.pocInserts || 0);
-    const pocUpd  = Number(m.pocUpdates || 0);
+    const pocAlready = Number(m.pocAlreadySynced || 0);
     const isIns   = Number(m.isInserts  || 0);
-    const isUpd   = Number(m.isUpdates  || 0);
+    const isAlready  = Number(m.isAlreadySynced  || 0);
     const dd      = res.dedup || {};
     const pocDup  = Number((dd.poc && dd.poc.removed) || 0);
     const isDup   = Number((dd.is  && dd.is.removed)  || 0);
     const parts = [
       '<span style="color:#0d9488;font-weight:600">✓ Sync complete.</span>',
       total + ' rows scanned',
-      ins + ' inserted',
-      upd + ' updated',
-      skp + ' skipped',
+      '<b style="color:#15803d">' + ins + ' new inserted</b>',
+      already + ' already synced (skipped)',
+      skp ? (skp + ' skipped') : '',
       err ? ('<span style="color:#b91c1c">' + err + ' errors</span>') : '',
       (pocDup + isDup) ? ((pocDup + isDup) + ' duplicates removed') : ''
     ].filter(Boolean);
     const breakdown = '<div class="text-[11px] text-slate-500">Customer POCs — ' +
-      pocIns + ' inserted, ' + pocUpd + ' updated' +
+      pocIns + ' new inserted, ' + pocAlready + ' already synced' +
       (pocDup ? (', ' + pocDup + ' duplicates removed') : '') +
       ' · Internal Stakeholders — ' +
-      isIns + ' inserted, ' + isUpd + ' updated' +
+      isIns + ' new inserted, ' + isAlready + ' already synced' +
       (isDup ? (', ' + isDup + ' duplicates removed') : '') +
       '</div>';
     // If the sync scanned 0 rows even though data clearly exists on the
@@ -9224,6 +9276,7 @@ async function pocSyncFromContacts(){
         '</div>';
     }
     if (bar) bar.innerHTML = parts.join(' · ') + breakdown + diagBlock;
+    try { logAudit('poc.syncFromContacts', { scanned: total, inserts: ins, alreadySynced: already, errors: err }); } catch(_){}
     await pocLoad();
   } catch(ex) {
     const msg = (ex && ex.message) || String(ex);
@@ -9245,7 +9298,10 @@ async function pocOnUpload(ev){
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   ev.target.value = '';   // allow re-uploading the same file
-  if (typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+  if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if (typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const bar = document.getElementById('pocStatusBar');
   if (bar) bar.innerHTML = '<span style="color:#64748b">Parsing Excel…</span>';
   try{
@@ -9671,6 +9727,7 @@ async function isSave(){
       return;
     }
     isCloseModal();
+    try { logAudit('is.save', { cid: cid, count: rows.length }); } catch(_){}
     await isLoad();
   } catch(ex) {
     err.textContent = 'Save failed: ' + ((ex && ex.message) || String(ex));
@@ -9685,14 +9742,18 @@ async function isDelete(rec){
   try{
     const res = await _fuJsonp('isDelete', { cid: rec.cid, email: rec.email });
     if (!res || !res.ok){ alert('Delete failed: ' + _pocExplainBadRes(res, 'isDelete').replace(/<[^>]+>/g,'')); return; }
+    try { logAudit('is.delete', { cid: rec.cid, email: rec.email }); } catch(_){}
     await isLoad();
   }catch(ex){
     alert('Delete failed: ' + ((ex && ex.message) || String(ex)));
   }
 }
 
-function isDownloadExcel(){
-  if (typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+async function isDownloadExcel(){
+  if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if (typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Internal Stakeholders');
   ws.columns = [
@@ -9742,7 +9803,10 @@ async function isOnUpload(ev){
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   ev.target.value = '';   // allow re-uploading the same file
-  if (typeof ExcelJS === 'undefined'){ alert('ExcelJS not loaded'); return; }
+  if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+    try { await window.ensureExcelJS(); } catch(_){}
+  }
+  if (typeof ExcelJS === 'undefined'){ alert('Excel library failed to load. Check your internet connection.'); return; }
   const bar = document.getElementById('isStatusBar');
   if (bar) bar.innerHTML = '<span style="color:#64748b">Parsing Excel…</span>';
   try{
@@ -10262,6 +10326,7 @@ async function wfSave(){
   try{
     const res = await _fuJsonp('wfSave', params);
     if (!res || !res.ok){ err.innerHTML = 'Save failed: ' + _pocExplainBadRes(res, 'wfSave'); return; }
+    try { logAudit('workflow.save', { id: (res && res.id) || params.id || '', name: params.name, frequency: params.frequency }); } catch(_){}
     wfCloseModal();
     await wfLoad();
   }catch(ex){
@@ -10277,6 +10342,7 @@ async function wfDelete(rec){
   try{
     const res = await _fuJsonp('wfDelete', { id: rec.id });
     if (!res || !res.ok){ alert('Delete failed: ' + _pocExplainBadRes(res, 'wfDelete').replace(/<[^>]+>/g,'')); return; }
+    try { logAudit('workflow.delete', { id: rec.id, name: rec.name }); } catch(_){}
     await wfLoad();
   }catch(ex){
     alert('Delete failed: ' + ((ex && ex.message) || String(ex)));
@@ -10312,6 +10378,7 @@ async function wfRunNow(rec){
   try{
     const res = await _fuJsonp('wfRunNow', { id: rec.id });
     if (!res || !res.ok){ alert('Run failed: ' + _pocExplainBadRes(res, 'wfRunNow').replace(/<[^>]+>/g,'')); return; }
+    try { logAudit('workflow.runNow', { id: rec.id, name: rec.name, sent: res.sent||0, queued: res.queued||0, skipped: res.skipped||0, failed: res.failed||0 }); } catch(_){}
     alert(`Run complete — ${res.sent||0} sent, ${res.queued||0} queued, ${res.skipped||0} skipped, ${res.failed||0} failed.`);
     await wfLoad();
     if (wfState.tab === 'queue') await wfQueueLoad();
@@ -10620,7 +10687,10 @@ async function generateMonthlyReportXls(){
       return;
     }
     const r = res.report;
-    if(typeof ExcelJS === 'undefined'){ out.innerHTML = '<span style="color:#b91c1c">ExcelJS not loaded</span>'; return; }
+    if(typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+      try { await window.ensureExcelJS(); } catch(_){}
+    }
+    if(typeof ExcelJS === 'undefined'){ out.innerHTML = '<span style="color:#b91c1c">Excel library failed to load. Check your internet connection.</span>'; return; }
     const wb = new ExcelJS.Workbook();
     // Summary sheet
     const s1 = wb.addWorksheet('Summary');
@@ -10920,7 +10990,10 @@ async function downloadWorklistActivityExcel(){
     if (!walState.filtered.length && !walState.rows.length) {
       alert('No worklist activity to export. Click Refresh first.'); return;
     }
-    if (typeof ExcelJS === 'undefined') { alert('ExcelJS library not loaded.'); return; }
+    if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+      try { await window.ensureExcelJS(); } catch(_){}
+    }
+    if (typeof ExcelJS === 'undefined') { alert('Excel library failed to load. Check your internet connection.'); return; }
     const rows      = walState.filtered.length ? walState.filtered : walState.rows;
     const today     = walState.meta.today || new Date().toISOString().slice(0,10);
     const rangeLbl  = walState.meta.rangeLabel || walState.range || 'Range';
@@ -12133,7 +12206,10 @@ async function wlDownloadDailyExcel(){
     if (!wlState.dailyRows.length && !(wlState.dailyPerCustomer||[]).length) {
       alert('No data to export. Click Refresh first.'); return;
     }
-    if (typeof ExcelJS === 'undefined') { alert('ExcelJS library not loaded.'); return; }
+    if (typeof ExcelJS === 'undefined' && typeof window.ensureExcelJS === 'function'){
+      try { await window.ensureExcelJS(); } catch(_){}
+    }
+    if (typeof ExcelJS === 'undefined') { alert('Excel library failed to load. Check your internet connection.'); return; }
     const wb        = new ExcelJS.Workbook();
     const today     = document.getElementById('wlDailyDate').textContent || wlTodayStr();
     const rangeLbl  = (wlState.dailyMeta && wlState.dailyMeta.rangeLabel) || 'Today';
@@ -12370,7 +12446,7 @@ async function wlLoadCollectorMaster(){
       b.disabled = true;
       try {
         const res = await _fuJsonp('collectorDelete', { email: em });
-        if (res && res.ok) { await wlLoadCollectorMaster(); await wlLoad(); }
+        if (res && res.ok) { try { logAudit('collector.delete', { email: em }); } catch(_){} await wlLoadCollectorMaster(); await wlLoad(); }
         else { alert((res&&res.error)||'Delete failed'); b.disabled = false; }
       } catch(err) { alert(err.message); b.disabled = false; }
     }));
@@ -13772,6 +13848,32 @@ function _wlPopulateCollectorScope(){
   }).catch(()=>{});
 }
 
+// ========== USER AUDIT LOG =====================================================
+// Fire-and-forget writer for the User_Audit_Log sheet. Every meaningful user
+// action (add / edit / delete / sync / bulk import / config change) should
+// call this so admins can trace who did what and when. Failures are silent
+// on purpose — we don't want a slow audit backend to block the UI.
+//
+//   logAudit('poc.save', { cid: '...', email: '...' });
+//   logAudit('workflow.delete', { id: 'wf_...' });
+//
+// The backend uses getViewerEmail_ to attribute the row to the logged-in user;
+// nothing in `details` is trusted for identity.
+async function logAudit(event, details){
+  try {
+    if (!event) return;
+    if (typeof _fuJsonp !== 'function') return;
+    var payload = {
+      event: String(event).slice(0, 120),
+      details: details == null ? '' : (typeof details === 'string' ? details : JSON.stringify(details)).slice(0, 4000),
+      ua: (navigator && navigator.userAgent) ? String(navigator.userAgent).slice(0, 260) : ''
+    };
+    // Fire and forget. 20s cap so hung backends can't leak timers.
+    _fuJsonp('auditLog', payload, 20000).catch(function(){});
+  } catch (_){}
+}
+try { window.logAudit = logAudit; } catch(_){}
+
 // ========== APPLICATION-LEVEL AUTH (username/password) ============================
 // Token storage — localStorage-backed so the tab survives reloads. Cleared on
 // explicit sign-out. The token is a 64-char hex string issued by the server's
@@ -14006,10 +14108,19 @@ function wireAuth(){
 // Admin sees everything; everyone else gets only the tabs in their row.
 async function applyAccessControl(){
   // Belt-and-braces timeout — guarantees the "Loading…" badge resolves to
-  // SOMETHING within 12 seconds even if whoAmI never responds.
+  // SOMETHING within 12 seconds even if whoAmI never responds. Also reveals
+  // the app shell as a safety net so a hung auth call doesn't leave the
+  // viewer staring at a blank page forever. If auth eventually resolves and
+  // reports needsLogin, authShowLoginScreen() will re-hide the shell.
   let didFinish = false;
   setTimeout(() => {
-    if (!didFinish) _wlSetWhoBadgeFallback('timeout');
+    if (!didFinish) {
+      _wlSetWhoBadgeFallback('timeout');
+      try {
+        const shell = document.getElementById('app-shell');
+        if (shell && shell.style.display === 'none') shell.style.display = '';
+      } catch(_) {}
+    }
   }, 12000);
 
   try {
@@ -14084,6 +14195,20 @@ async function applyAccessControl(){
         sec.classList.remove('hidden-until-admin');
       } else {
         sec.parentNode && sec.parentNode.removeChild(sec);
+      }
+    });
+
+    // Admin-only top-bar buttons: Print + Configure live data source.
+    // Non-admin viewers should never see these. The buttons are hidden by
+    // default in the HTML (style="display:none") so they can't flash before
+    // this runs; admins get them reveleaed here.
+    document.querySelectorAll('.admin-only-btn').forEach(btn => {
+      if (reallyAdmin) {
+        btn.style.display = '';
+      } else {
+        // Remove from the DOM entirely so a viewer can never trigger them
+        // via devtools / keyboard shortcut / other code path.
+        btn.parentNode && btn.parentNode.removeChild(btn);
       }
     });
 
@@ -14224,12 +14349,10 @@ function boot(){
     }
   });
   // When served by Apps Script, viewers don't need to touch Settings — hide the gear.
-  _bootSafe('hideGear', function(){
-    if (window.__SERVED_BY_APPS_SCRIPT__) {
-      const gear = document.getElementById('btnSettings');
-      if (gear) gear.style.display = 'none';
-    }
-  });
+  // (hideGear step removed — visibility of the ⚙ Configure button is now
+  // owned by applyAccessControl(): admins see it in every hosting mode,
+  // non-admins never see it. Hiding it unconditionally for Apps Script
+  // viewers would strip the button away from admins too.)
   _bootSafe('genTs', function(){
     var el = document.getElementById('genTs');
     if (el) el.textContent = new Date().toLocaleString();

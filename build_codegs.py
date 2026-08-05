@@ -7,12 +7,27 @@ Apps Script side also contains:
   - Follow-up email module: preview, send single, send bulk, activity log
 
 Usage:  python3 build_codegs.py
-Output: /sessions/serene-keen-mendel/mnt/outputs/code.gs
+Output: $AR_OUT_DIR/code.gs   (defaults to /sessions/.../mnt/outputs locally
+        and to ./build in CI — see .github/workflows/deploy-appsscript.yml)
+
+The output directory is chosen via the AR_OUT_DIR env var so this script
+stays in lockstep with build_v4.py (which uses the same env var). Without
+this shared convention the CI clasp deploy silently fails because
+build_v4.py writes the slim HTML to ./build and build_codegs.py then
+looks for it under /sessions/... — a path that only exists in the local
+cowork sandbox.
 """
 import base64, os, textwrap
 
-SLIM_HTML = '/sessions/serene-keen-mendel/mnt/outputs/Fynd_Receivables_Insights__slim.html'
-OUT       = '/sessions/serene-keen-mendel/mnt/outputs/code.gs'
+# Resolve output/input directory the same way build_v4.py does. Fallback
+# is the historical cowork sandbox path so local dev keeps working.
+_OUT_DIR = os.environ.get('AR_OUT_DIR') or (
+    '/sessions/serene-keen-mendel/mnt/outputs'
+)
+os.makedirs(_OUT_DIR, exist_ok=True)
+
+SLIM_HTML = os.path.join(_OUT_DIR, 'Fynd_Receivables_Insights__slim.html')
+OUT       = os.path.join(_OUT_DIR, 'code.gs')
 
 with open(SLIM_HTML, 'rb') as f:
     html_bytes = f.read()
@@ -57,6 +72,10 @@ var ERROR_TOKENS = ['#N/A','#REF!','#VALUE!','#NAME?','#DIV/0!','#NULL!','#ERROR
 // === FOLLOW-UP EMAIL CONFIG ====================================
 var CONTACTS_TAB        = 'Customer_Contacts';
 var LOG_TAB             = 'Email_Log';
+// User_Audit_Log — append-only audit trail of every user-initiated action.
+// Populated via auditLogRoute_. Auto-created on first write with header row:
+//   Timestamp | User | Action | Details | UserAgent
+var AUDIT_TAB           = 'User_Audit_Log';
 var FOLLOWUP_SENDER     = 'ar@gofynd.com';
 var FOLLOWUP_BCC        = 'sainathgosika@gofynd.com';
 var FOLLOWUP_REPLY_TO   = 'ar@gofynd.com';
@@ -524,6 +543,9 @@ function doGet(e) {
   if (p.action === 'sendOne')       return sendOneRoute_(e);
   if (p.action === 'sendBulk')      return sendBulkRoute_(e);
   if (p.action === 'activityLog')   return activityLogRoute_(e);
+  // User audit log — write from any authed viewer; read is admin-only.
+  if (p.action === 'auditLog')      return auditLogRoute_(e);
+  if (p.action === 'auditLogList')  return auditLogListRoute_(e);
   if (p.action === 'monthlyReport') return monthlyReportRoute_(e);
   if (p.action === 'contactsList')  return contactsListRoute_(e);
   if (p.action === 'aliases')       return aliasesRoute_(e);
@@ -2099,6 +2121,81 @@ function activityLogRoute_(e) {
 
 function emptySummary_() {
   return { total: 0, sent: 0, failed: 0, uniqueCustomers: 0, totalOs: 0, monthly: {} };
+}
+
+// ===============================================================
+// User audit log — every user-initiated action (add / edit / delete /
+// sync / bulk import / config change) posts here so an admin can trace
+// who did what and when. Read via auditLogListRoute_; write via
+// auditLogRoute_. The sheet is created on first write.
+// ===============================================================
+function _auditSheet_(ss) {
+  var sh = ss.getSheetByName(AUDIT_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(AUDIT_TAB);
+    sh.getRange(1, 1, 1, 5).setValues([['Timestamp', 'User', 'Action', 'Details', 'UserAgent']]);
+    sh.setFrozenRows(1);
+    try {
+      sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#f5f2ed');
+      sh.setColumnWidth(1, 170); // Timestamp
+      sh.setColumnWidth(2, 220); // User
+      sh.setColumnWidth(3, 200); // Action
+      sh.setColumnWidth(4, 500); // Details
+      sh.setColumnWidth(5, 260); // UserAgent
+    } catch (_) {}
+  }
+  return sh;
+}
+function auditLogRoute_(e) {
+  try {
+    var p = e.parameter || {};
+    var action = String(p.event || p.a || '').slice(0, 120);
+    if (!action) return respond_({ ok: false, error: 'event required' }, e);
+    // Details can be an arbitrary JSON blob — cap size so a runaway caller
+    // can't fill the sheet with megabytes per row.
+    var details = String(p.details || p.d || '').slice(0, 4000);
+    var ua = String(p.ua || '').slice(0, 260);
+    var em = '';
+    try { em = getViewerEmail_(e) || ''; } catch (_) {}
+    var ts = Utilities.formatDate(new Date(), 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm:ssXXX");
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var sh = _auditSheet_(ss);
+    sh.appendRow([ts, em || '(unknown)', action, details, ua]);
+    return respond_({ ok: true, ts: ts, user: em || '', action: action }, e);
+  } catch (err) {
+    return respond_({ ok: false, error: String(err && err.message || err) }, e);
+  }
+}
+function auditLogListRoute_(e) {
+  try {
+    var p = e.parameter || {};
+    // Admin-only read — regular users shouldn't be able to enumerate other
+    // users' actions.
+    var em = '';
+    try { em = getViewerEmail_(e) || ''; } catch (_) {}
+    if (!isAdmin_(em)) return respond_({ ok: false, error: 'admin only' }, e);
+    var limit = Math.max(1, Math.min(5000, parseInt(p.limit || '500', 10)));
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var sh = ss.getSheetByName(AUDIT_TAB);
+    if (!sh) return respond_({ ok: true, rows: [] }, e);
+    var v = sh.getDataRange().getValues();
+    if (v.length < 2) return respond_({ ok: true, rows: [] }, e);
+    var head = v[0];
+    var out = [];
+    // Newest first — walk from the bottom of the sheet up to `limit`.
+    for (var i = v.length - 1; i >= 1 && out.length < limit; i--) {
+      var r = {};
+      for (var j = 0; j < head.length; j++) {
+        var val = v[i][j];
+        if (val instanceof Date) val = Utilities.formatDate(val, 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm:ssXXX");
+        r[head[j]] = val;
+      }
+      out.push(r);
+    }
+    return respond_({ ok: true, rows: out }, e);
+  } catch (err) {
+    return respond_({ ok: false, error: String(err && err.message || err) }, e);
+  }
 }
 
 function monthlyReportRoute_(e) {
@@ -4763,6 +4860,10 @@ function _pocMigrateFromLegacy_(ss, actor) {
     // Destination-specific breakdown so the UI can show what landed where.
     pocInserts: 0, pocUpdates: 0,
     isInserts: 0,  isUpdates: 0,
+    // "alreadySynced" = row already present in destination on (cid, email);
+    // insert-only sync leaves it untouched to preserve manual edits (roles,
+    // phones, priorities, notes). Aggregate + per-target for UI display.
+    alreadySynced: 0, pocAlreadySynced: 0, isAlreadySynced: 0,
     skipped: 0, errors: 0, details: []
   };
   var vals = sh.getDataRange().getValues();
@@ -4790,10 +4891,8 @@ function _pocMigrateFromLegacy_(ss, actor) {
   if (iCid === -1 || iTo === -1) {
     throw new Error('Required columns not found in ' + legacyName + '. Need at least "Company ID" and "To Email"; got header: ' + head.join(' | '));
   }
-  counts.dataRows = emptyCounts.dataRows;
-  counts.header   = emptyCounts.header;
-  counts.headerLc = emptyCounts.headerLc;
-  counts.columns  = emptyCounts.columns;
+  // counts and emptyCounts point at the same object; the diag fields on
+  // emptyCounts above are already visible on counts.
   var counts = emptyCounts;
   var splitEmails = function(s){
     // Splitters: comma, semicolon, newline. Filter blanks + strip
@@ -4911,15 +5010,17 @@ function _pocMigrateFromLegacy_(ss, actor) {
                  : (isFyndInternal(email) ? 'is' : 'poc');
       try {
         var mapKey = cid + '|' + key;
+        // ---------------------------------------------------------------
+        // INSERT-ONLY semantics — if the (cid, email) pair is already in
+        // the destination sheet, leave the existing row untouched. Users
+        // routinely add role / phone / notes / priority to POC rows after
+        // the first sync; an update-on-match would silently wipe those
+        // edits. Only rows new to the destination land on the sheet.
+        // ---------------------------------------------------------------
         if (target === 'is') {
           if (isKeyToIdx[mapKey] != null) {
-            // Update in place
-            isUpdatePlan.push({
-              sheetRow: isKeyToIdx[mapKey].sheetRow,
-              values: buildISRow(cid, cust, email, priority)
-            });
-            counts.isUpdates++; counts.updates++;
-            counts.details.push({ cid: cid, email: email, status: 'update', target: target });
+            counts.isAlreadySynced++; counts.alreadySynced++;
+            counts.details.push({ cid: cid, email: email, status: 'alreadySynced', target: target });
           } else if (isQueuedKeys[mapKey]) {
             // Already queued as insert this run — skip duplicate
             counts.skipped++;
@@ -4932,12 +5033,8 @@ function _pocMigrateFromLegacy_(ss, actor) {
           }
         } else {
           if (pocKeyToIdx[mapKey] != null) {
-            pocUpdatePlan.push({
-              sheetRow: pocKeyToIdx[mapKey].sheetRow,
-              values: buildPOCRow(cid, cust, email, priority)
-            });
-            counts.pocUpdates++; counts.updates++;
-            counts.details.push({ cid: cid, email: email, status: 'update', target: target });
+            counts.pocAlreadySynced++; counts.alreadySynced++;
+            counts.details.push({ cid: cid, email: email, status: 'alreadySynced', target: target });
           } else if (pocQueuedKeys[mapKey]) {
             counts.skipped++;
             counts.details.push({ cid: cid, email: email, status: 'skip', target: target });
@@ -4960,17 +5057,12 @@ function _pocMigrateFromLegacy_(ss, actor) {
   }
 
   // -------------------------------------------------------------------------
-  // 3) Apply the plan in bulk. Updates go through setValues on the resolved
-  //    sheet ranges. New rows land as a single appended block per sheet.
+  // 3) Apply the plan in bulk. Insert-only sync — no update writes. New rows
+  //    land as a single appended block per sheet. The pocUpdatePlan /
+  //    isUpdatePlan arrays are kept declared above so unrelated helpers can
+  //    reference them without ReferenceError, but they always stay empty
+  //    under insert-only semantics.
   // -------------------------------------------------------------------------
-  for (var upi = 0; upi < pocUpdatePlan.length; upi++) {
-    var pu = pocUpdatePlan[upi];
-    pocSh.getRange(pu.sheetRow, 1, 1, POC_HEADERS.length).setValues([pu.values]);
-  }
-  for (var uii = 0; uii < isUpdatePlan.length; uii++) {
-    var iu = isUpdatePlan[uii];
-    isSh.getRange(iu.sheetRow, 1, 1, IS_HEADERS.length).setValues([iu.values]);
-  }
   if (pocInsertRows.length) {
     var pocInsertStart = pocSh.getLastRow() + 1;
     pocSh.getRange(pocInsertStart, 1, pocInsertRows.length, POC_HEADERS.length).setValues(pocInsertRows);
