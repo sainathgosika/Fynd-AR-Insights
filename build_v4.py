@@ -740,11 +740,11 @@ HTML = r"""<!DOCTYPE html>
 <div id="loginScreen" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
   <div class="lg-card">
     <h1 id="lgTitle">Fynd · Receivables Insights</h1>
-    <div class="lg-sub">Sign in to Fynd AR Receivables</div>
+    <div class="lg-sub">Sign in with your <b>@gofynd.com</b> credentials to continue</div>
     <form id="loginForm" autocomplete="on" onsubmit="return false;">
-      <label for="lgUsername">Username</label>
+      <label for="lgUsername">Gofynd email or username</label>
       <div class="lg-input-wrap">
-        <input id="lgUsername" name="username" type="text" autocomplete="username" spellcheck="false" required />
+        <input id="lgUsername" name="username" type="text" autocomplete="username" spellcheck="false" placeholder="you@gofynd.com" required />
       </div>
       <label for="lgPassword">Password</label>
       <div class="lg-input-wrap">
@@ -13962,10 +13962,16 @@ async function authDoLogin(){
     // Clear the password field so it doesn't sit in memory after we hide.
     if (pEl) pEl.value = '';
     authHideLoginScreen();
+    // Reset the deferred-fetch guard so applyAccessControl re-kicks the
+    // fetch with the new identity carried on every request.
+    try { window.__liveKicked = false; } catch(_) {}
     // Re-run the access-control pass now that we carry a token.
     try { await applyAccessControl(); } catch(_) {}
-    // Pull data fresh with the new identity.
-    try { if (typeof liveFetch === 'function') liveFetch(false); } catch(_) {}
+    // Ensure the live timer is running (applyAccessControl kicks the first
+    // fetch; this just guarantees the interval is set even if that path
+    // ran already).
+    try { if (typeof startLiveTimer === 'function') startLiveTimer(); } catch(_) {}
+    try { logAudit('auth.login', { via: 'token' }); } catch(_) {}
   } catch (ex) {
     err.textContent = (ex && ex.message) || 'Network error.';
   } finally {
@@ -14107,21 +14113,26 @@ function wireAuth(){
 // Apply per-viewer tab visibility based on the Access_Matrix sheet.
 // Admin sees everything; everyone else gets only the tabs in their row.
 async function applyAccessControl(){
-  // Belt-and-braces timeout — guarantees the "Loading…" badge resolves to
-  // SOMETHING within 12 seconds even if whoAmI never responds. Also reveals
-  // the app shell as a safety net so a hung auth call doesn't leave the
-  // viewer staring at a blank page forever. If auth eventually resolves and
-  // reports needsLogin, authShowLoginScreen() will re-hide the shell.
+  // Belt-and-braces timeout. If whoAmI never responds within 15s we HAVE to
+  // do something visible — but that something depends on whether we require
+  // login. On Boltic (__SERVED_BY_APPS_SCRIPT__ = true) the dashboard MUST
+  // stay behind the login screen on failure; on local-file mode we reveal
+  // the shell so nobody stares at a blank page.
   let didFinish = false;
   setTimeout(() => {
-    if (!didFinish) {
-      _wlSetWhoBadgeFallback('timeout');
+    if (didFinish) return;
+    _wlSetWhoBadgeFallback('timeout');
+    if (window.__SERVED_BY_APPS_SCRIPT__) {
+      // Auth-required mode: force the login screen up so no data leaks
+      // through a hung whoAmI call.
+      try { authShowLoginScreen('Sign-in service is slow to respond. Please sign in to continue.'); } catch(_) {}
+    } else {
       try {
         const shell = document.getElementById('app-shell');
         if (shell && shell.style.display === 'none') shell.style.display = '';
       } catch(_) {}
     }
-  }, 12000);
+  }, 15000);
 
   try {
     const res = await _fuJsonp('authWhoAmI', {});
@@ -14134,7 +14145,13 @@ async function applyAccessControl(){
     }
     if(!res || !res.ok){
       didFinish = true;
-      _wlSetWhoBadgeFallback('failed');
+      // In auth-required mode, treat a failed whoAmI as "please sign in".
+      if (window.__SERVED_BY_APPS_SCRIPT__) {
+        authClearToken();
+        authShowLoginScreen((res && res.error) || 'Could not verify your session. Please sign in.');
+      } else {
+        _wlSetWhoBadgeFallback('failed');
+      }
       return;
     }
     // Confirmed session — make sure the shell is visible.
@@ -14267,11 +14284,31 @@ async function applyAccessControl(){
         showTab(first);
       }
     }
+    // Kick off the deferred live fetch now that we know the viewer.
+    // (In Boltic mode boot() intentionally skips the auto liveFetch until
+    // authWhoAmI confirms a session, so identity carries into every backend
+    // call.) The __liveKicked guard prevents double-fetch when the token
+    // path and Google break-glass path both resolve.
+    try {
+      if (window.__SERVED_BY_APPS_SCRIPT__ && !window.__liveKicked) {
+        window.__liveKicked = true;
+        if (typeof setSyncStatus === 'function') setSyncStatus('Connecting…', false);
+        if (typeof liveFetch === 'function') liveFetch(false).then(() => {
+          try { if (typeof startLiveTimer === 'function') startLiveTimer(); } catch(_) {}
+        });
+      }
+    } catch(_) {}
     didFinish = true;
-  } catch(_){
-    // Offline / no auth available — make sure the badge isn't stuck on "Loading…"
+  } catch(err){
+    // Offline / no auth available — treat as "please sign in" when we're in
+    // auth-required mode (Boltic / Apps Script). Otherwise just clear the badge.
     didFinish = true;
-    _wlSetWhoBadgeFallback('offline');
+    if (window.__SERVED_BY_APPS_SCRIPT__) {
+      try { authClearToken(); } catch(_) {}
+      try { authShowLoginScreen('Could not reach the sign-in service. Check your network and try again.'); } catch(_) {}
+    } else {
+      _wlSetWhoBadgeFallback('offline');
+    }
   }
 }
 
@@ -14341,6 +14378,13 @@ function boot(){
         const shell = document.getElementById('app-shell');
         if (shell) shell.style.display = 'none';
       } catch(_) {}
+      // If we don't even have a cached token, don't waste a round-trip —
+      // show the login screen straight away. authWhoAmI still runs (in case
+      // the viewer is the admin's Google identity break-glass), and if that
+      // succeeds it hides the overlay again.
+      try {
+        if (!authGetToken()) authShowLoginScreen();
+      } catch(_) {}
       applyAccessControl();
     } else {
       // Local file / not served by Apps Script — identity is unknown. Make sure
@@ -14371,10 +14415,19 @@ function boot(){
   //   • If served by Apps Script (window.__DATA_URL__ injected) → connect immediately, no Settings needed.
   //   • Else if a URL is already in localStorage              → reconnect.
   //   • Else                                                  → wait for the user to open Settings.
+  // On Boltic (auth-required mode) we DEFER liveFetch until authWhoAmI reports ok.
+  // Otherwise, an unauthenticated visitor would still see the data behind the
+  // login overlay via the JSONP data pull.
   const autoUrl = window.__DATA_URL__ || localStorage.getItem(LS_KEY_URL);
   if(autoUrl){
-    setSyncStatus('Connecting…', false);
-    liveFetch(false).then(()=> startLiveTimer());
+    if (window.__SERVED_BY_APPS_SCRIPT__) {
+      // applyAccessControl (called above) or authDoLogin (post sign-in) is
+      // responsible for kicking off liveFetch once identity is confirmed.
+      setSyncStatus('Verifying…', false);
+    } else {
+      setSyncStatus('Connecting…', false);
+      liveFetch(false).then(()=> startLiveTimer());
+    }
   } else {
     setSyncStatus('Live Off', false);
   }
