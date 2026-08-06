@@ -35,6 +35,12 @@ HTML = r"""<!DOCTYPE html>
 <title>Fynd - Receivables Insights</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Google Identity Services (GIS) — powers the "Sign in with Google" button
+     on the login screen and the One Tap silent prompt for viewers who are
+     already signed in to their @gofynd.com Google account. The client ID is
+     injected by app.py from the AR_GOOGLE_CLIENT_ID env var; when the env
+     var is unset the GIS script still loads harmlessly (init is skipped). -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!--
   Heavy export-only libraries (XLSX, ExcelJS, jsPDF, jspdf-autotable, Papaparse)
   are NOT top-loaded any more — they add ~1.5 MB of blocking parse cost to the
@@ -502,6 +508,30 @@ HTML = r"""<!DOCTYPE html>
     margin-top:16px;padding-top:14px;border-top:1px solid #e8e1d5;
     font-size:11px;color:#6b6660;text-align:center;line-height:1.6;
   }
+  /* Google Sign-In button block. Rendered as the FIRST auth control (above
+     the username/password fallback) whenever __GOOGLE_CLIENT_ID__ is set.
+     The GSI script paints its own button into #gsiBtnContainer — we just
+     provide the wrapper, the "OR" divider, and the fallback-hint copy. */
+  #loginScreen .lg-google-block{margin-bottom:14px;}
+  #loginScreen #gsiBtnContainer{display:flex;justify-content:center;min-height:44px;}
+  #loginScreen .lg-google-hint{
+    font-size:11px;color:#6b6660;text-align:center;margin-top:8px;line-height:1.5;
+  }
+  #loginScreen .lg-divider{
+    display:flex;align-items:center;gap:8px;margin:16px 0 6px;
+    font-size:10px;font-weight:600;color:#94908a;text-transform:uppercase;letter-spacing:.08em;
+  }
+  #loginScreen .lg-divider::before,
+  #loginScreen .lg-divider::after{
+    content:'';flex:1;height:1px;background:#e8e1d5;
+  }
+  /* Google Sign-In is the ONLY visible auth control. The password
+     fallback markup stays in the DOM (as an emergency break-glass path)
+     but is `hidden` — an admin can unhide it from the browser console
+     via: document.querySelector('#loginScreen .lg-fallback').hidden = false */
+  #loginScreen .lg-google-loading{
+    font-size:12px;color:#6b6660;text-align:center;padding:12px 8px;line-height:1.5;
+  }
   /* ===== Change password modal ===== */
   #chgpwModal{
     position:fixed;inset:0;z-index:9500;display:none;
@@ -703,7 +733,7 @@ HTML = r"""<!DOCTYPE html>
      ============================================================ */
   (function detectAppsScriptFallback(){
     try {
-      if (window.__SERVED_BY_APPS_SCRIPT__) return; // Injection already fired.
+      if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) return; // Injection already fired.
       var hn  = String((location && location.hostname) || '');
       var ref = String((document && document.referrer) || '');
       var looksLikeSandbox = /googleusercontent\.com$/i.test(hn) || /script\.google\.com/i.test(hn);
@@ -741,19 +771,39 @@ HTML = r"""<!DOCTYPE html>
   <div class="lg-card">
     <h1 id="lgTitle">Receivables · AR Control Tower</h1>
     <div class="lg-sub">Sign in with your <b>@gofynd.com</b> Google account to continue. Only Gofynd employees are allowed.</div>
-    <form id="loginForm" autocomplete="on" onsubmit="return false;">
-      <label for="lgUsername">Gofynd email or username</label>
-      <div class="lg-input-wrap">
-        <input id="lgUsername" name="username" type="text" autocomplete="username" spellcheck="false" placeholder="you@gofynd.com" required />
+
+    <!-- Google Sign-In block — the ONLY visible auth control. GIS paints
+         its own button into #gsiBtnContainer. When the user is already
+         signed in to a @gofynd.com Google account on this device, One Tap
+         recognises them automatically without any clicks. -->
+    <div class="lg-google-block" id="lgGoogleBlock">
+      <div id="gsiBtnContainer" role="status" aria-live="polite" aria-label="Sign in with Google">
+        <div class="lg-google-loading">Preparing Google Sign-In…</div>
       </div>
-      <label for="lgPassword">Password</label>
-      <div class="lg-input-wrap">
-        <input id="lgPassword" name="password" type="password" autocomplete="current-password" required />
-        <button type="button" id="lgEyeBtn" class="lg-eye" aria-label="Show password" title="Show / hide password"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
-      </div>
-      <button type="submit" id="lgSubmit" class="lg-submit">Sign in</button>
-      <div id="lgError" class="lg-error" role="alert"></div>
-    </form>
+      <div class="lg-google-hint" id="lgGoogleHint">Already signed in with your Gofynd Google account? You should be recognised automatically.</div>
+      <div id="lgGoogleError" class="lg-error" role="alert"></div>
+    </div>
+
+    <!-- Password fallback lives here but is NEVER shown in normal flow.
+         It is emergency-only, revealed by typing the break-glass sequence
+         (Shift+Shift+P) so an admin can recover if GIS is unavailable. -->
+    <div class="lg-fallback" hidden aria-hidden="true">
+      <div class="lg-divider">Emergency password sign-in</div>
+      <form id="loginForm" autocomplete="off" onsubmit="return false;">
+        <label for="lgUsername">Gofynd email or username</label>
+        <div class="lg-input-wrap">
+          <input id="lgUsername" name="username" type="text" autocomplete="username" spellcheck="false" placeholder="you@gofynd.com" />
+        </div>
+        <label for="lgPassword">Password</label>
+        <div class="lg-input-wrap">
+          <input id="lgPassword" name="password" type="password" autocomplete="current-password" />
+          <button type="button" id="lgEyeBtn" class="lg-eye" aria-label="Show password" title="Show / hide password"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <button type="submit" id="lgSubmit" class="lg-submit">Sign in</button>
+        <div id="lgError" class="lg-error" role="alert"></div>
+      </form>
+    </div>
+
     <div class="lg-footer">
       Contact <a href="mailto:sainathgosika@gofynd.com" style="color:#2c4a52;font-weight:600;">sainathgosika@gofynd.com</a> for access.
     </div>
@@ -14123,13 +14173,161 @@ function authRenderHeader(res){
 const PASSWORD_EYE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const PASSWORD_EYE_OFF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.06 10.06 0 0 1 12 20c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 4.06-5.19M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a17.9 17.9 0 0 1-2.16 3.19M1 1l22 22"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg>';
 
+// ---- Google Identity Services (GIS) integration ----
+// When AR_GOOGLE_CLIENT_ID is injected by app.py as window.__GOOGLE_CLIENT_ID__,
+// we render the "Sign in with Google" button on the login screen and fire a
+// One Tap silent prompt so viewers who are already signed in to a
+// @gofynd.com Google account on this device get recognised without any
+// extra clicks.
+//
+// The GIS script tag is in <head> with async defer. We poll for
+// window.google.accounts.id up to ~10s (usually resolves in <200ms), then
+// initialise. On credential (a Google JWT) we hit authGoogleLogin on the
+// backend which verifies the token, checks @gofynd.com + Access_Matrix,
+// and issues our session token.
+let __gsiInitialised = false;
+let __gsiPollTries   = 0;
+function _authInitGoogleSignIn(){
+  if (__gsiInitialised) return;
+  const clientId = (window.__GOOGLE_CLIENT_ID__ || '').trim();
+  const block    = document.getElementById('lgGoogleBlock');
+  const btnContainer = document.getElementById('gsiBtnContainer');
+  const errEl   = document.getElementById('lgGoogleError');
+  const hint    = document.getElementById('lgGoogleHint');
+  // Helper to swap the loading placeholder for a clear status line when
+  // the Google button can't be rendered. The password fallback is
+  // intentionally NOT surfaced here — Google Sign-In is the ONLY viewer
+  // auth path, so any failure must be diagnosed and fixed by an admin.
+  function showBlockingError(msg){
+    if (btnContainer) {
+      btnContainer.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'lg-google-loading';
+      div.style.color = '#b85450';
+      div.textContent = msg;
+      btnContainer.appendChild(div);
+    }
+    if (hint)  hint.style.display = 'none';
+    if (errEl) errEl.textContent = 'Contact sainathgosika@gofynd.com for help.';
+  }
+  if (!clientId) {
+    // No client ID injected → Boltic env var AR_GOOGLE_CLIENT_ID is not
+    // set. The dashboard cannot authenticate anyone in this state.
+    showBlockingError('Google Sign-In is not configured on this deployment.');
+    return;
+  }
+  // Wait for the GIS bundle to load.
+  const gAcc = window.google && window.google.accounts && window.google.accounts.id;
+  if (!gAcc) {
+    if (__gsiPollTries++ < 40) { setTimeout(_authInitGoogleSignIn, 250); return; }
+    // GIS never loaded (blocked by adblock / corp firewall / offline).
+    showBlockingError('Google Sign-In failed to load. Check your network or ad-blocker.');
+    return;
+  }
+  try {
+    gAcc.initialize({
+      client_id: clientId,
+      callback: _authGoogleCallback,
+      // Restrict the account picker to Gofynd's hosted domain — Google
+      // filters non-@gofynd.com accounts out of the chooser before the
+      // callback ever fires.
+      hosted_domain: 'gofynd.com',
+      // Recognise the currently-signed-in Google account automatically.
+      auto_select: true,
+      // If the user closes the One Tap prompt, don't nag them again this
+      // session — the "Sign in with Google" button is right there.
+      cancel_on_tap_outside: false,
+      itp_support: true,
+      use_fedcm_for_prompt: true,
+    });
+    // Paint the button (this replaces the "Preparing Google Sign-In…"
+    // placeholder inside #gsiBtnContainer).
+    if (btnContainer) {
+      btnContainer.innerHTML = '';
+      gAcc.renderButton(btnContainer, {
+        type:  'standard',
+        theme: 'filled_blue',
+        size:  'large',
+        text:  'signin_with',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width: 320,
+      });
+    }
+    if (block) block.style.display = '';
+    // Fire the One Tap prompt (silent auto sign-in when possible).
+    try {
+      gAcc.prompt();
+    } catch(_) {}
+    __gsiInitialised = true;
+  } catch (err) {
+    console.error('[Fynd] GIS init failed:', err);
+    showBlockingError('Google Sign-In init failed: ' + (err.message || err));
+  }
+}
+
+// Callback fired by GIS when the user picks an account. `response.credential`
+// is a Google-issued JWT (id_token) we hand to the backend for verification.
+function _authGoogleCallback(response){
+  const errEl = document.getElementById('lgGoogleError');
+  if (errEl) errEl.textContent = '';
+  const jwt = response && response.credential;
+  if (!jwt) {
+    if (errEl) errEl.textContent = 'No credential received from Google.';
+    return;
+  }
+  authDoGoogleLogin(jwt);
+}
+
+// Exchange a Google JWT for our own session token. Mirrors authDoLogin()'s
+// success path (set token, hide login, kick off applyAccessControl).
+async function authDoGoogleLogin(jwt){
+  const errEl = document.getElementById('lgGoogleError');
+  const hint  = document.getElementById('lgGoogleHint');
+  const oldHint = hint ? hint.textContent : '';
+  if (hint) hint.textContent = 'Signing you in…';
+  try {
+    const res = await _fuPost('authGoogleLogin', {
+      credential: jwt,
+      ua: (navigator && navigator.userAgent) || ''
+    });
+    if (!res || !res.ok) {
+      if (errEl) errEl.textContent = (res && res.error) || 'Google sign-in failed.';
+      if (hint) hint.textContent = oldHint;
+      // If the Google account isn't provisioned, don't auto-retry every
+      // page load — disable auto_select so the user can pick a different
+      // account.
+      try {
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+          window.google.accounts.id.disableAutoSelect();
+        }
+      } catch(_) {}
+      return;
+    }
+    authSetToken(res.token);
+    authHideLoginScreen();
+    try { window.__liveKicked = false; } catch(_) {}
+    try { await applyAccessControl(); } catch(_) {}
+    try { if (typeof startLiveTimer === 'function') startLiveTimer(); } catch(_) {}
+    try { logAudit('auth.login', { via: 'google' }); } catch(_) {}
+  } catch (ex) {
+    if (errEl) errEl.textContent = (ex && ex.message) || 'Network error.';
+    if (hint) hint.textContent = oldHint;
+  }
+}
+
 // Boot-time auth setup — wire login form, sign-out, change-password modal.
 function wireAuth(){
-  // Login form
+  // Login form — the visible fallback form was removed; these handlers
+  // remain so an admin can still submit the emergency-only password form
+  // if they manually reveal it via the console break-glass toggle.
   const form = document.getElementById('loginForm');
   if (form) form.addEventListener('submit', (ev)=>{ ev.preventDefault(); authDoLogin(); });
   const btn = document.getElementById('lgSubmit');
   if (btn) btn.addEventListener('click', (ev)=>{ ev.preventDefault(); authDoLogin(); });
+  // Initialise Google Sign-In. Runs after wireAuth so the login form is
+  // wired up; the GIS bundle is async-loaded from <head>.
+  _authInitGoogleSignIn();
   // Password eye toggle on the login screen — uses shared SVG constants so
   // this button, the UM password field, and the change-password modal all
   // render the same icon set.
@@ -14180,7 +14378,7 @@ async function applyAccessControl(){
   setTimeout(() => {
     if (didFinish) return;
     _wlSetWhoBadgeFallback('timeout');
-    if (window.__SERVED_BY_APPS_SCRIPT__) {
+    if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) {
       // Auth-required mode: force the login screen up so no data leaks
       // through a hung whoAmI call.
       try { authShowLoginScreen('Sign-in service is slow to respond. Please sign in to continue.'); } catch(_) {}
@@ -14204,7 +14402,7 @@ async function applyAccessControl(){
     if(!res || !res.ok){
       didFinish = true;
       // In auth-required mode, treat a failed whoAmI as "please sign in".
-      if (window.__SERVED_BY_APPS_SCRIPT__) {
+      if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) {
         authClearToken();
         authShowLoginScreen((res && res.error) || 'Could not verify your session. Please sign in.');
       } else {
@@ -14348,7 +14546,7 @@ async function applyAccessControl(){
     // call.) The __liveKicked guard prevents double-fetch when the token
     // path and Google break-glass path both resolve.
     try {
-      if (window.__SERVED_BY_APPS_SCRIPT__ && !window.__liveKicked) {
+      if ((window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) && !window.__liveKicked) {
         window.__liveKicked = true;
         if (typeof setSyncStatus === 'function') setSyncStatus('Connecting…', false);
         if (typeof liveFetch === 'function') liveFetch(false).then(() => {
@@ -14361,7 +14559,7 @@ async function applyAccessControl(){
     // Offline / no auth available — treat as "please sign in" when we're in
     // auth-required mode (Boltic / Apps Script). Otherwise just clear the badge.
     didFinish = true;
-    if (window.__SERVED_BY_APPS_SCRIPT__) {
+    if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) {
       try { authClearToken(); } catch(_) {}
       try { authShowLoginScreen('Could not reach the sign-in service. Check your network and try again.'); } catch(_) {}
     } else {
@@ -14428,7 +14626,7 @@ function boot(){
   // viewer is. Admin gets the Access Matrix tab; everyone else only sees the
   // tabs they were granted. When opened as a local file we skip this entirely.
   _bootSafe('accessControl', function(){
-    if (window.__SERVED_BY_APPS_SCRIPT__) {
+    if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) {
       // Hide the app shell until authWhoAmI confirms a valid session. This
       // prevents the dashboard from flashing behind the login overlay while
       // the auth round-trip is in flight.
@@ -14478,7 +14676,7 @@ function boot(){
   // login overlay via the JSONP data pull.
   const autoUrl = window.__DATA_URL__ || localStorage.getItem(LS_KEY_URL);
   if(autoUrl){
-    if (window.__SERVED_BY_APPS_SCRIPT__) {
+    if (window.__SERVED_BY_APPS_SCRIPT__ || window.__REQUIRE_AUTH__) {
       // applyAccessControl (called above) or authDoLogin (post sign-in) is
       // responsible for kicking off liveFetch once identity is confirmed.
       setSyncStatus('Verifying…', false);

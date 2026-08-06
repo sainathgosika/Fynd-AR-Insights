@@ -14,11 +14,21 @@ env:
   # live data source" prompt). Set this in the Boltic dashboard's
   # Environment Variables section — do NOT commit the actual URL here.
   AR_LIVE_URL: ""
+  # AR_GOOGLE_CLIENT_ID — Google OAuth 2.0 client ID for the "Sign in with
+  # Google" flow (Google Identity Services). When set, app.py injects
+  # window.__GOOGLE_CLIENT_ID__ and window.__REQUIRE_AUTH__=true so the
+  # login screen is enforced with a Google sign-in button + One Tap silent
+  # prompt for already-signed-in @gofynd.com accounts. Create the client
+  # at https://console.cloud.google.com/apis/credentials (type: Web
+  # application) and add the Boltic public URL as an authorised JavaScript
+  # origin. Set the actual value in the Boltic dashboard — do NOT commit.
+  AR_GOOGLE_CLIENT_ID: ""
 
 serverlessConfig:
   Env:
     PORT: "8080"
     AR_LIVE_URL: ""
+    AR_GOOGLE_CLIENT_ID: ""
   PortMap:
     - Name: "http"
       Port: 8080

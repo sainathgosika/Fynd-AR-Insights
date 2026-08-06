@@ -556,6 +556,7 @@ function doGet(e) {
   if (p.action === 'acmDelete')     return acmDeleteRoute_(e);
   // Auth routes (username / password / session token)
   if (p.action === 'authLogin')          return authLoginRoute_(e);
+  if (p.action === 'authGoogleLogin')    return authGoogleLoginRoute_(e);
   if (p.action === 'authWhoAmI')         return authWhoAmIRoute_(e);
   if (p.action === 'authLogout')         return authLogoutRoute_(e);
   if (p.action === 'authChangePassword') return authChangePasswordRoute_(e);
@@ -2876,6 +2877,126 @@ function authLoginRoute_(e) {
       tabs: tabsInfo.tabs,
       adminEmail: ADMIN_EMAIL,
       allTabs: ACM_ALL_TABS
+    }, e);
+  } catch (err) {
+    return respond_({ ok: false, error: String(err && err.message || err) }, e);
+  }
+}
+
+// authGoogleLogin — Google Identity Services (GIS) sign-in.
+// The client sends `credential` (a Google-issued JWT / id_token). We verify
+// it out-of-band with Google's tokeninfo endpoint (no key management on our
+// side), enforce the @gofynd.com hosted-domain gate, then look up the
+// caller in Access_Matrix. If found and active, issue a session token
+// identical to the password-login path — the rest of the app doesn't care
+// which login method was used, only that a valid token is present.
+//
+// Not-provisioned Google accounts are rejected: we DO NOT auto-provision.
+// Provisioning belongs to the Access Management UI (admin-controlled).
+function authGoogleLoginRoute_(e) {
+  try {
+    _authCleanupExpiredSessions_();
+    var p = (e && e.parameter) || {};
+    var jwt = String(p.credential || '').trim();
+    if (!jwt) {
+      return respond_({ ok: false, error: 'Missing Google credential.' }, e);
+    }
+    // Verify the JWT with Google's tokeninfo endpoint. This returns the
+    // decoded claims IF the signature + expiry check pass on Google's end.
+    // We don't need to know the client_id here — we verify aud further down.
+    var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(jwt);
+    var resp;
+    try {
+      resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    } catch (netErr) {
+      return respond_({ ok: false, error: 'Could not reach Google to verify credential.' }, e);
+    }
+    var code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      return respond_({ ok: false, error: 'Google rejected the credential (HTTP ' + code + ').' }, e);
+    }
+    var claims;
+    try {
+      claims = JSON.parse(resp.getContentText());
+    } catch (parseErr) {
+      return respond_({ ok: false, error: 'Malformed response from Google.' }, e);
+    }
+    // email_verified must be a genuine boolean true (Google returns
+    // the string "true" from tokeninfo — coerce both cases).
+    var emailVerified = (claims.email_verified === true || String(claims.email_verified).toLowerCase() === 'true');
+    if (!emailVerified) {
+      return respond_({ ok: false, error: 'Google account email is not verified.' }, e);
+    }
+    var email = String(claims.email || '').toLowerCase().trim();
+    if (!email) {
+      return respond_({ ok: false, error: 'Google credential did not include an email.' }, e);
+    }
+    // @gofynd.com domain gate. Google returns `hd` (hosted domain) for
+    // Workspace accounts — prefer that when present, fall back to email
+    // suffix for personal accounts (which we reject anyway).
+    var hd = String(claims.hd || '').toLowerCase().trim();
+    var isGofynd = (hd === 'gofynd.com') || /@gofynd\.com$/i.test(email);
+    if (!isGofynd) {
+      return respond_({ ok: false, error: 'Access denied — only @gofynd.com Google accounts can sign in.' }, e);
+    }
+    // Optional: enforce audience match. Set GOOGLE_CLIENT_ID in Script
+    // Properties (or leave blank to skip the check — Google already
+    // guaranteed the JWT is valid, but audience match closes the token
+    // reuse loophole).
+    var expectedAud = '';
+    try {
+      expectedAud = String(PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID') || '').trim();
+    } catch (_) {}
+    if (expectedAud) {
+      var aud = String(claims.aud || '').trim();
+      if (aud !== expectedAud) {
+        return respond_({ ok: false, error: 'Google credential audience mismatch.' }, e);
+      }
+    }
+    // Look up in Access_Matrix. Admin is always allowed even if not listed
+    // in the matrix (matches the whoAmI break-glass behaviour).
+    var acm = readAcm_();
+    var rec = acm.byEmail[email];
+    if (!rec && !isAdmin_(email)) {
+      return respond_({
+        ok: false,
+        error: 'Your Gofynd account (' + email + ') is not provisioned. Ask ' + ADMIN_EMAIL + ' for access.'
+      }, e);
+    }
+    if (rec && !rec.active) {
+      return respond_({ ok: false, error: 'Account inactive. Contact ' + ADMIN_EMAIL + '.' }, e);
+    }
+    // Stamp last-login on the ACM row (best effort).
+    if (rec) {
+      var sh = acm.sheet;
+      var llCol = (acm.idx['Last Login At'] || 0) + 1;
+      var faCol = (acm.idx['Failed Attempts'] || 0) + 1;
+      var luCol = (acm.idx['Locked Until'] || 0) + 1;
+      try {
+        if (llCol > 0) sh.getRange(rec._rowIndex, llCol).setValue(new Date());
+        if (faCol > 0) sh.getRange(rec._rowIndex, faCol).setValue(0);
+        if (luCol > 0) sh.getRange(rec._rowIndex, luCol).setValue(0);
+      } catch (_) {}
+    }
+    // Issue session + return tabs — same shape as authLoginRoute_.
+    var ua = String((p.ua || '') || '').slice(0, 400);
+    var username = rec ? String(rec.username || '') : '';
+    var session = _authIssueSession_(email, username, ua);
+    var tabsInfo = _authTabsFor_(email);
+    return respond_({
+      ok: true,
+      token: session.token,
+      email: email,
+      username: username,
+      name: rec ? String(rec.name || claims.name || '') : String(claims.name || ''),
+      picture: String(claims.picture || ''),
+      expiresAt: session.expiresAt,
+      isAdmin: tabsInfo.isAdmin,
+      isCollector: tabsInfo.isCollector,
+      tabs: tabsInfo.tabs,
+      adminEmail: ADMIN_EMAIL,
+      allTabs: ACM_ALL_TABS,
+      via: 'google'
     }, e);
   } catch (err) {
     return respond_({ ok: false, error: String(err && err.message || err) }, e);
