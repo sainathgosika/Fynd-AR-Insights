@@ -2683,6 +2683,10 @@ function acmUpsertRoute_(e) {
     var p = e.parameter || {};
     var stakeholderEmail = String(p.email || '').toLowerCase().trim();
     if (!stakeholderEmail) throw new Error('email is required');
+    // @gofynd.com domain gate per master spec — only Gofynd users can be provisioned.
+    if (!/@gofynd\.com$/i.test(stakeholderEmail)) {
+      throw new Error('Only @gofynd.com email addresses can be provisioned.');
+    }
     var name        = String(p.name || '').trim();
     var department  = String(p.department || '').trim();
     var role        = String(p.role || '').trim();
@@ -2815,6 +2819,12 @@ function authLoginRoute_(e) {
       try { Utilities.sleep(150); } catch (_) {}
       return respond_({ ok: false, error: 'Invalid username or password.' }, e);
     }
+    // @gofynd.com domain gate per master spec. Reject any provisioned account
+    // whose email is not on the @gofynd.com domain (defence in depth — the ACM
+    // UI now blocks non-Gofynd emails too, but legacy rows may still slip through).
+    if (rec.email && !/@gofynd\.com$/i.test(rec.email)) {
+      return respond_({ ok: false, error: 'Access denied — only @gofynd.com accounts can sign in.' }, e);
+    }
     if (!rec.active) {
       return respond_({ ok: false, error: 'Account inactive. Contact ' + ADMIN_EMAIL + '.' }, e);
     }
@@ -2882,6 +2892,11 @@ function authWhoAmIRoute_(e) {
     if (tok) {
       var sess = _authValidateToken_(tok);
       if (!sess) return respond_({ ok: false, needsLogin: true, error: 'Session expired. Please sign in again.' }, e);
+      // @gofynd.com domain gate on the token identity itself.
+      if (sess.email && !/@gofynd\.com$/i.test(sess.email)) {
+        _authInvalidateToken_(tok);
+        return respond_({ ok: false, needsLogin: true, error: 'Access denied — only @gofynd.com accounts can sign in.' }, e);
+      }
       var acm = readAcm_();
       var rec = acm.byEmail[sess.email];
       var info = _authTabsFor_(sess.email);
@@ -2901,7 +2916,11 @@ function authWhoAmIRoute_(e) {
     }
     // Break-glass: no token, but the Google identity IS the admin. Let them
     // in without a password so the owner can never lock themselves out.
+    // (Break-glass path still requires the admin email to be @gofynd.com.)
     var goog = getActiveUserEmail_();
+    if (goog && !/@gofynd\.com$/i.test(goog)) {
+      return respond_({ ok: false, needsLogin: true, error: 'Access denied — only @gofynd.com accounts can sign in.' }, e);
+    }
     if (goog && isAdmin_(getActiveUserEmail_())) {
       var info2 = _authTabsFor_(goog);
       return respond_({

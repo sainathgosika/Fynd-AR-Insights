@@ -739,8 +739,8 @@ HTML = r"""<!DOCTYPE html>
      the Google-identity admin (sainathgosika@gofynd.com) skips this. -->
 <div id="loginScreen" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
   <div class="lg-card">
-    <h1 id="lgTitle">Fynd · Receivables Insights</h1>
-    <div class="lg-sub">Sign in with your <b>@gofynd.com</b> credentials to continue</div>
+    <h1 id="lgTitle">Receivables · AR Control Tower</h1>
+    <div class="lg-sub">Sign in with your <b>@gofynd.com</b> Google account to continue. Only Gofynd employees are allowed.</div>
     <form id="loginForm" autocomplete="on" onsubmit="return false;">
       <label for="lgUsername">Gofynd email or username</label>
       <div class="lg-input-wrap">
@@ -810,7 +810,7 @@ HTML = r"""<!DOCTYPE html>
   <div class="tab-item" data-target="pdd"><span class="sb-icon">🛡</span><span class="sb-label">PDD</span></div>
 
   <div class="sb-section">Collections</div>
-  <div class="tab-item" data-target="bank"><span class="sb-icon">🏦</span><span class="sb-label">Bank Receipts</span></div>
+  <div class="tab-item" data-target="bank"><span class="sb-icon">🏦</span><span class="sb-label">Cash Receipts</span></div>
   <div class="sb-group-toggle" id="arActivityToggle" title="Toggle Follow-ups + Worklist"><span class="sb-icon">📨</span><span class="sb-label">AR Activity</span><span class="sb-caret">›</span></div>
   <div class="sb-group-children" id="arActivityChildren">
     <div class="tab-item sb-sub" data-target="followups"><span class="sb-icon">📧</span><span class="sb-label">Follow-ups</span></div>
@@ -825,7 +825,7 @@ HTML = r"""<!DOCTYPE html>
 
   <div class="sb-section">Admin</div>
   <div class="tab-item" data-target="activity"><span class="sb-icon">📋</span><span class="sb-label">Activity Log</span></div>
-  <div class="tab-item admin-only hidden-until-admin" data-target="acm"><span class="sb-icon">🔐</span><span class="sb-label">User Management</span></div>
+  <div class="tab-item admin-only hidden-until-admin" data-target="acm"><span class="sb-icon">🔐</span><span class="sb-label">Access Management</span></div>
 </aside>
 
 <div class="page-shell">
@@ -847,22 +847,29 @@ HTML = r"""<!DOCTYPE html>
               <div class="b-sub">Insights</div>
             </div>
             <!-- Subline now lives *inside* the brand block, directly under the title -->
-            <div class="text-[11px] hdr-subline mt-0.5" style="color:var(--c-muted);font-weight:500;letter-spacing:.01em" id="hdrMeta">AR Control Tower · Last refresh: <span id="lastRefresh">—</span> · <span id="hdrCount">0</span> records</div>
+            <!-- Compact status line per master spec: "AR Control Tower · Updated HH:MM AM • N records" -->
+            <div class="text-[11px] hdr-subline mt-0.5" style="color:var(--c-muted);font-weight:500;letter-spacing:.01em" id="hdrMeta">AR Control Tower · Updated <span id="lastRefresh">—</span> · <span id="hdrCount">0</span> records</div>
           </div>
         </button>
       </div>
       <!-- CENTER: expanded search takes all available room -->
       <div class="topbar-search hidden md:block flex-1 max-w-[640px]">
-        <input id="globalSearch" placeholder="Search customers, invoices, BUs…" autocomplete="off"/>
+        <input id="globalSearch" placeholder="Search customer, invoice or BU" autocomplete="off"/>
       </div>
       <!-- RIGHT: toolbar chips + profile pinned to top-right -->
       <div class="flex items-center gap-2">
-        <div class="rounded-lg p-0.5 inline-flex" id="currencySeg" data-tip="Display currency unit" style="background:var(--c-soft);position:relative;">
-          <button class="seg-btn active" data-cu="auto">Auto</button>
-          <button class="seg-btn" data-cu="inr">₹</button>
-          <button class="seg-btn" data-cu="k">K</button>
-          <button class="seg-btn" data-cu="l">L</button>
-          <button class="seg-btn" data-cu="cr">Cr</button>
+        <!-- Units dropdown (compact) per master spec: Auto, ₹, Thousands (K), Lakhs (L), Crores (Cr).
+             #currencySeg wrapper kept so existing tooltip + layout hooks continue to work; the
+             legacy .seg-btn buttons are gone — a single <select id="currencyDD"> now drives state.currency. -->
+        <div class="rounded-lg p-0.5 inline-flex items-center" id="currencySeg" data-tip="Display currency unit" style="background:var(--c-soft);position:relative;">
+          <label for="currencyDD" class="text-[11px] px-2" style="color:var(--c-muted);font-weight:500;">Units</label>
+          <select id="currencyDD" class="text-[11.5px]" style="background:#fff;border:1px solid var(--c-border);border-radius:8px;padding:4px 6px;color:var(--c-accent);font-weight:500;cursor:pointer;">
+            <option value="auto" selected>Auto</option>
+            <option value="inr">₹</option>
+            <option value="k">Thousands (K)</option>
+            <option value="l">Lakhs (L)</option>
+            <option value="cr">Crores (Cr)</option>
+          </select>
         </div>
         <div class="flex items-center gap-1.5">
           <button id="btnLiveSync" class="icon-btn" data-tip="Pull latest from Google Sheet">
@@ -1215,8 +1222,8 @@ HTML = r"""<!DOCTYPE html>
     <section class="card p-4" data-section="bank">
       <div class="flex items-start justify-between mb-3 flex-wrap gap-3">
         <div>
-          <div class="text-sm font-semibold text-slate-800">🏦 Bank Receipts</div>
-          <div class="text-[11px] text-slate-500" id="bankMeta">— receipts · live from <code>Bank_Receipts</code></div>
+          <div class="text-sm font-semibold text-slate-800">🏦 Cash Receipts</div>
+          <div class="text-[11px] text-slate-500" id="bankMeta">— receipts · Cash Receipt Management &amp; Reconciliation · live from <code>Bank_Receipts</code></div>
         </div>
         <div class="flex items-center gap-2">
           <button id="bankClear" class="chip" title="Reset all bank filters" style="background:#f3e0df;color:#8b3a37;border-color:#e8c8c6;">↺ Reset</button>
@@ -2867,8 +2874,8 @@ HTML = r"""<!DOCTYPE html>
     <section id="acmSection" class="card p-4 space-y-4 hidden-until-admin" data-section="acm">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div class="text-sm font-semibold text-slate-800">🔐 User Management &mdash; Admin only</div>
-          <div class="text-[11px] text-slate-500">Manage who sees which tab. Stored in the <span class="font-mono">Access_Matrix</span> sheet · only <span class="font-mono" id="acmAdminEmail">sainathgosika@gofynd.com</span> can edit.</div>
+          <div class="text-sm font-semibold text-slate-800">🔐 Access Management &mdash; Admin only</div>
+          <div class="text-[11px] text-slate-500">Grant or revoke dashboard-tab access for <b>@gofynd.com</b> users. Stored in the <span class="font-mono">Access_Matrix</span> sheet · only <span class="font-mono" id="acmAdminEmail">sainathgosika@gofynd.com</span> can edit.</div>
         </div>
         <div class="flex items-center gap-2 text-[11px]">
           <span class="chip" id="acmWhoBadge" style="background:#dcfce7;color:#166534;border-color:#86efac">Loading…</span>
@@ -2876,24 +2883,31 @@ HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Add / Edit form — simplified to 5 visible fields per user spec:
-           User Name (login), Email, Password (with eye toggle), Provisioned On,
-           Tabs (checkboxes). Department/Role/Active/Notes are preserved in the
-           DB with sensible defaults but hidden from the form. -->
+      <!-- Add / Edit form — passwords removed per master spec (Google OAuth handles auth).
+           Visible fields: User Name, Email, Role, Provisioned On, Tabs (checkboxes).
+           Password inputs no longer exist here; the legacy #acmPassword element is kept
+           only as a hidden placeholder so acmSave / acmResetForm code doesn't need to
+           null-check every reference — the value is always the empty string. -->
       <div class="grid md:grid-cols-4 gap-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
         <div class="md:col-span-4 text-[11px] uppercase tracking-wide text-slate-500" id="acmFormTitle">Add stakeholder</div>
+        <div class="md:col-span-4 text-[11px] rounded-md px-3 py-2" style="background:#fef3c7;color:#78350f;border:1px solid #fde68a">
+          🔑 Sign-in is handled by Google — only <b>@gofynd.com</b> accounts are allowed. Access Management just grants/revokes tab access; no passwords are stored here.
+        </div>
+        <input id="acmPassword" type="hidden" value=""/>
         <label class="text-[12px] flex flex-col gap-1">User Name
           <input id="acmUsername" type="text" class="chip" style="padding:6px 10px" placeholder="Login username (3–32 chars)" autocomplete="off"/>
         </label>
         <label class="text-[12px] flex flex-col gap-1">Email
           <input id="acmEmail" type="email" class="chip" style="padding:6px 10px" placeholder="user@gofynd.com" autocomplete="off"/>
         </label>
-        <label class="text-[12px] flex flex-col gap-1">Password
-          <div style="position:relative;">
-            <input id="acmPassword" type="password" class="chip" style="padding:6px 34px 6px 10px;width:100%;box-sizing:border-box" placeholder="Set password (min 6 chars, mix of letters, numbers, symbols)" autocomplete="new-password"/>
-            <button type="button" id="acmPasswordEye" title="Show / hide password" aria-label="Show password"
-              style="position:absolute;top:50%;right:6px;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#6b6660;padding:2px 4px;display:inline-flex;align-items:center;justify-content:center;line-height:0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
-          </div>
+        <label class="text-[12px] flex flex-col gap-1">Role
+          <select id="acmRole" class="chip" style="padding:6px 10px">
+            <option value="Viewer">Viewer</option>
+            <option value="Collections Manager">Collections Manager</option>
+            <option value="Finance Manager">Finance Manager</option>
+            <option value="Admin">Admin</option>
+            <option value="Custom">Custom</option>
+          </select>
         </label>
         <label class="text-[12px] flex flex-col gap-1">Provisioned On
           <input id="acmProv" type="date" class="chip" style="padding:6px 10px"/>
@@ -2912,18 +2926,19 @@ HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Stakeholder table — simplified columns: User Name, Email, Tabs, Provisioned, Status, Actions -->
+      <!-- Stakeholder table — columns match master spec (Name, Email, Role, Status, Provisioned On) plus Tabs + Actions -->
       <div class="overflow-x-auto rounded-lg border border-slate-200">
         <table class="w-full text-[12px]">
           <thead class="bg-slate-50"><tr>
             <th class="px-3 py-2 text-left">User Name</th>
             <th class="px-3 py-2 text-left">Email</th>
+            <th class="px-3 py-2 text-left">Role</th>
             <th class="px-3 py-2 text-left">Tabs Granted</th>
-            <th class="px-3 py-2 text-left">Provisioned</th>
+            <th class="px-3 py-2 text-left">Provisioned On</th>
             <th class="px-3 py-2 text-left">Status</th>
             <th class="px-3 py-2 text-left">Actions</th>
           </tr></thead>
-          <tbody id="acmTbody"><tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr></tbody>
+          <tbody id="acmTbody"><tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -3146,6 +3161,51 @@ function _weightedDSO(custIter){
   return Math.round(weighted/totOS);
 }
 
+// ===== CENTRALIZED REALIZED DSO ENGINE (per AR Insights Master Prompt) =====
+// One canonical formula used everywhere. Callers pass an iterable of invoice
+// rows; the engine keeps only rows with a valid Receipt Date (closed / paid
+// invoices), amount-weights the day-difference, and returns a whole-number
+// day count. Returns 'N/A' when no eligible invoices remain.
+//
+//   DSO = SUM(InvoiceAmount × (ReceiptDate − InvoiceDate)) / SUM(InvoiceAmount)
+//
+// Works dynamically at any filter context (Overall, Customer, Region, BU,
+// Channel, Payment Type/Term, Currency, Document Status/Type, etc.) — the
+// caller just passes the pre-filtered row set. Negative or absurdly large
+// DSOs are surfaced as-is; callers can inspect the diagnostic sidecar.
+function computeRealizedDSO(rows){
+  if (!rows || !rows.length) return { value: 'N/A', eligible: 0, flagged: 0, totalIA: 0 };
+  let sumWeighted = 0, sumIA = 0, eligible = 0, flagged = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    // Only invoices with a valid Receipt Date qualify (paid / closed).
+    if (!r || !r.d || !r.rd) continue;
+    const iaRaw = +r.ia; if (!isFinite(iaRaw) || iaRaw <= 0) continue;
+    const dInv = (r.d instanceof Date) ? r.d : new Date(r.d);
+    const dRcp = (r.rd instanceof Date) ? r.rd : new Date(r.rd);
+    if (!(dInv instanceof Date) || isNaN(dInv.getTime())) { flagged++; continue; }
+    if (!(dRcp instanceof Date) || isNaN(dRcp.getTime())) { flagged++; continue; }
+    const days = Math.round((dRcp - dInv) / 86400000);
+    if (days < 0 || days > 3650) flagged++; // still counted; flag for review
+    sumWeighted += iaRaw * days;
+    sumIA       += iaRaw;
+    eligible    += 1;
+  }
+  if (!eligible || sumIA <= 0) return { value: 'N/A', eligible: 0, flagged: flagged, totalIA: 0 };
+  return {
+    value: Math.round(sumWeighted / sumIA),
+    eligible: eligible,
+    flagged: flagged,
+    totalIA: sumIA
+  };
+}
+// Convenience wrapper: numeric-only realized DSO (or NaN if not computable).
+// Use this when a caller wants a scalar for a chart/KPI cell.
+function realizedDSOValue(rows){
+  const r = computeRealizedDSO(rows);
+  return (r.value === 'N/A') ? NaN : r.value;
+}
+
 // ===== Filtering =====
 function applyMultiFilter(rows){
   const f = state;
@@ -3178,11 +3238,11 @@ function recompute(){
   const u = new Set(); state.rowsInv.forEach(r=>u.add(r)); state.rowsCol.forEach(r=>u.add(r));
   const filteredCount = u.size;
   document.getElementById('rowCounter').textContent = `${fmtNum(state.rowsInv.length)} invoice rows · ${fmtNum(state.rowsCol.length)} receipt rows`;
-  // Header meta
-  const ts = new Date().toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  // Header meta — compact per master spec: "Updated 10:15 AM • 2,125 records"
+  const ts = new Date().toLocaleString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
   const lr = document.getElementById('lastRefresh'); if(lr) lr.textContent = ts;
   const hc = document.getElementById('hdrCount');
-  if(hc) hc.textContent = `${fmtNum(filteredCount)} of ${fmtNum(state.data.length)} filtered`;
+  if(hc) hc.textContent = `${fmtNum(filteredCount)} of ${fmtNum(state.data.length)}`;
 }
 
 // ===== KPI computations =====
@@ -3858,6 +3918,10 @@ function wireMoreFilters(){
 function wireSegments(){
   document.querySelectorAll('#topSeg .seg-btn').forEach(b=> b.addEventListener('click', ()=>{ document.querySelectorAll('#topSeg .seg-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.topMetric = b.dataset.m; paintCharts(); }));
   document.querySelectorAll('#chSeg .seg-btn').forEach(b=> b.addEventListener('click', ()=>{ document.querySelectorAll('#chSeg .seg-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.chMetric = b.dataset.m; paintCharts(); }));
+  // Units dropdown (converted from segmented buttons per master spec).
+  // Legacy .seg-btn selector kept as a no-op if any theme code still queries it.
+  const _cuDD = document.getElementById('currencyDD');
+  if (_cuDD) _cuDD.addEventListener('change', () => { state.currency = _cuDD.value; refresh(); });
   document.querySelectorAll('#currencySeg .seg-btn').forEach(b=> b.addEventListener('click', ()=>{ document.querySelectorAll('#currencySeg .seg-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.currency = b.dataset.cu; refresh(); }));
 }
 function wireTables(){
@@ -5436,8 +5500,8 @@ function setSyncStatus(text, ok){
   if(cs)  cs.textContent = text;
   const meta = document.getElementById('hdrMeta');
   if(meta && ok){
-    const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-    document.getElementById('lastRefresh').textContent = t + ' (live)';
+    const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    document.getElementById('lastRefresh').textContent = t;
   }
 }
 /**
@@ -5955,7 +6019,7 @@ function paintBank(){
   document.getElementById('bk_applied').textContent= fmtINR(tot.applied);
   document.getElementById('bk_pending').textContent= fmtINR(tot.pending);
   document.getElementById('bk_banks').textContent  = new Set(rows.map(r=>r.bk).filter(Boolean)).size;
-  document.getElementById('bankMeta').textContent  = rows.length.toLocaleString('en-IN')+' receipts · live from Bank_Receipts';
+  document.getElementById('bankMeta').textContent  = rows.length.toLocaleString('en-IN')+' receipts · Cash Receipt Management & Reconciliation · live from Bank_Receipts';
   // Daily inflow chart — bucket by effective rd so the chart matches the table totals.
   const byD = {};
   rows.forEach(r=>{
@@ -13586,21 +13650,14 @@ function acmGetTabsChecks(){
 function acmResetForm(){
   acmState.editingEmail = null;
   document.getElementById('acmFormTitle').textContent = 'Add stakeholder';
-  ['acmUsername','acmEmail','acmPassword'].forEach(id => document.getElementById(id).value = '');
+  // #acmPassword is hidden input (password field removed per master spec); still safe to clear.
+  ['acmUsername','acmEmail','acmPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('acmProv').value = new Date().toISOString().slice(0,10);
+  const roleEl = document.getElementById('acmRole'); if (roleEl) roleEl.value = 'Viewer';
   acmSetTabsChecks([]);
   document.getElementById('acmEmail').disabled = false;
   document.getElementById('acmUsername').disabled = false;
-  document.getElementById('acmPassword').placeholder = 'Set password (min 6 chars, mix of letters, numbers, symbols)';
   document.getElementById('acmFormMsg').textContent = '';
-  // Reset password visibility toggle (input back to password, eye back to closed-eye SVG)
-  const pw = document.getElementById('acmPassword');
-  if (pw) pw.type = 'password';
-  const pwEye = document.getElementById('acmPasswordEye');
-  if (pwEye && typeof PASSWORD_EYE_SVG !== 'undefined') {
-    pwEye.innerHTML = PASSWORD_EYE_SVG;
-    pwEye.setAttribute('aria-label', 'Show password');
-  }
 }
 function acmEditRow(rec){
   acmState.editingEmail = rec.email;
@@ -13608,24 +13665,16 @@ function acmEditRow(rec){
   document.getElementById('acmUsername').value = rec.username || '';
   document.getElementById('acmEmail').value = rec.email || '';
   document.getElementById('acmEmail').disabled = true; // lock email = primary key
-  document.getElementById('acmPassword').value = '';
-  document.getElementById('acmPassword').placeholder = 'Leave blank to keep current password';
+  const roleEl = document.getElementById('acmRole'); if (roleEl) roleEl.value = rec.role || 'Viewer';
   document.getElementById('acmProv').value = (String(rec.provisionedOn||'')).slice(0,10) || new Date().toISOString().slice(0,10);
   acmSetTabsChecks(rec.tabs || []);
   document.getElementById('acmFormMsg').textContent = '';
-  const pw = document.getElementById('acmPassword');
-  if (pw) pw.type = 'password';
-  const pwEye = document.getElementById('acmPasswordEye');
-  if (pwEye && typeof PASSWORD_EYE_SVG !== 'undefined') {
-    pwEye.innerHTML = PASSWORD_EYE_SVG;
-    pwEye.setAttribute('aria-label', 'Show password');
-  }
   document.getElementById('acmFormTitle').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function acmRenderTable(){
   const tb = document.getElementById('acmTbody');
   if(!acmState.rows.length){
-    tb.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No stakeholders yet. Add one above.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No stakeholders yet. Add one above.</td></tr>';
     return;
   }
   tb.innerHTML = acmState.rows.map((r, i)=> {
@@ -13633,9 +13682,11 @@ function acmRenderTable(){
       ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:9999px;font-weight:600">Active</span>'
       : '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:9999px;font-weight:600">Revoked</span>';
     const isAdminRow = String(r.email).toLowerCase() === String(acmState.me||'').toLowerCase();
+    const roleLabel = acmEsc(r.role || 'Viewer');
     return `<tr class="border-t border-slate-100">
       <td class="px-3 py-2 font-medium">${acmEsc(r.username || r.name || '—')}</td>
       <td class="px-3 py-2 font-mono text-[11px]">${acmEsc(r.email)}</td>
+      <td class="px-3 py-2 text-[11px]">${roleLabel}</td>
       <td class="px-3 py-2 text-[11px]">${(r.tabs||[]).map(acmEsc).join(', ') || '<span class="text-slate-400">—</span>'}</td>
       <td class="px-3 py-2 text-[11px]">${acmEsc(String(r.provisionedOn||'').slice(0,10))}</td>
       <td class="px-3 py-2">${statusBadge}</td>
@@ -13664,7 +13715,7 @@ function acmRenderTable(){
 }
 async function acmLoad(){
   const tb = document.getElementById('acmTbody');
-  tb.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr>';
+  tb.innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr>';
   try {
     const res = await _fuJsonp('acmList', {});
     // Verbose diagnostics so we can see what's actually coming back from Apps Script.
@@ -13696,8 +13747,16 @@ async function acmSave(){
   msg.textContent = ''; msg.style.color = '';
   const email = document.getElementById('acmEmail').value.trim().toLowerCase();
   const username = document.getElementById('acmUsername').value.trim();
-  const password = document.getElementById('acmPassword').value;
+  // Password field is removed per master spec — Google OAuth handles login.
+  // The hidden #acmPassword element remains only to keep legacy code paths
+  // that touch its .value working; its value is always empty.
+  const password = '';
   if(!email){ msg.textContent = 'Email is required'; msg.style.color = '#b91c1c'; return; }
+  // Domain gate: only @gofynd.com may be provisioned.
+  if (!/@gofynd\\.com$/i.test(email)) {
+    msg.textContent = 'Only @gofynd.com email addresses can be provisioned.';
+    msg.style.color = '#b91c1c'; return;
+  }
   if(!username){ msg.textContent = 'User Name is required'; msg.style.color = '#b91c1c'; return; }
   if(!/^[A-Za-z0-9._-]{3,32}$/.test(username)){
     msg.textContent = 'User Name must be 3–32 chars — letters, digits, . _ - only.';
@@ -13712,29 +13771,23 @@ async function acmSave(){
     msg.textContent = 'User Name already used by ' + dup.email;
     msg.style.color = '#b91c1c'; return;
   }
-  // Password rules — required for new rows, optional for edits.
-  const editing = !!acmState.editingEmail;
-  if (password) {
-    const pwErr = acmValidatePasswordRules(password);
-    if (pwErr) { msg.textContent = pwErr; msg.style.color = '#b91c1c'; return; }
-  } else if (!editing) {
-    msg.textContent = 'Password is required for new users';
-    msg.style.color = '#b91c1c'; return;
-  }
-  // Preserve the row's existing name/department/role/notes/active when editing;
+  // Role dropdown (Admin / Finance Manager / Collections Manager / Viewer / Custom).
+  // Preserve the row's existing name/department/notes/active when editing;
   // for new rows those columns get sensible defaults on the server.
+  const roleEl = document.getElementById('acmRole');
+  const roleVal = roleEl ? String(roleEl.value || 'Viewer') : 'Viewer';
   const existing = acmState.rows.find(r => String(r.email||'').toLowerCase() === email);
   const payload = {
     email,
     username,
     name:        (existing && existing.name) || username,
     department:  (existing && existing.department) || '',
-    role:        (existing && existing.role) || '',
+    role:        roleVal,
     tabs:        acmGetTabsChecks().join(','),
     notes:       (existing && existing.notes) || '',
     provisionedOn: document.getElementById('acmProv').value || new Date().toISOString().slice(0,10),
   };
-  if (password) payload.password = password;
+  // No password sent — server keeps whatever was on file (blank for new rows).
   // Only override Active when the row already exists AND we know its current state
   // (existing rows retain their Active flag by default on the server).
   const btn = document.getElementById('acmSave');
@@ -13755,11 +13808,11 @@ function wireAcm(){
   document.getElementById('acmReload').addEventListener('click', acmLoad);
   document.getElementById('acmSave').addEventListener('click', acmSave);
   document.getElementById('acmReset').addEventListener('click', acmResetForm);
-  // Password field eye toggle (show/hide) — uses shared SVG constants so
-  // this button matches the login screen and change-password modal.
+  // Password field eye toggle was removed with the ACM password field per master spec.
+  // If a legacy #acmPasswordEye still exists in an older template, wire it defensively.
   const pwEye = document.getElementById('acmPasswordEye');
   const pwFld = document.getElementById('acmPassword');
-  if (pwEye && pwFld) {
+  if (pwEye && pwFld && pwFld.type !== 'hidden') {
     pwEye.addEventListener('click', () => {
       const showing = pwFld.type === 'text';
       pwFld.type = showing ? 'password' : 'text';
@@ -13948,6 +14001,11 @@ async function authDoLogin(){
   const username = (uEl.value || '').trim();
   const password = pEl.value || '';
   if (!username || !password) { err.textContent = 'Enter your username and password.'; return; }
+  // @gofynd.com domain gate (client-side pre-check). Only enforced when the
+  // user actually typed an email — legacy accounts may still use bare usernames.
+  if (username.indexOf('@') >= 0 && !/@gofynd\.com$/i.test(username)) {
+    err.textContent = 'Access denied — only @gofynd.com accounts can sign in.'; return;
+  }
   btn.disabled = true;
   const oldLabel = btn.textContent;
   btn.textContent = 'Signing in…';
