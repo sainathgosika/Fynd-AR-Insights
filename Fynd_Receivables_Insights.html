@@ -1327,7 +1327,7 @@
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div class="text-sm font-semibold text-slate-800">📧 Follow-up Emails — Outstanding Reminders</div>
-          <div class="text-[11px] text-slate-500">Filter Status = Open · Invoice Type = INV · Sender ar@gofynd.com · BCC sainathgosika@gofynd.com</div>
+          <div class="text-[11px] text-slate-500">Filter Status = Open · Invoice Type = INV · Outstanding &gt; 0 · Sender {{Collector Email ID}} · BCC sainathgosika@gofynd.com</div>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <div class="flex items-center gap-1 chip" style="padding:4px 8px;background:#fff;border:1px solid #cbd5e1;" title="Template applied to every preview and send below">
@@ -8178,7 +8178,9 @@ const fuState = {
   rows: [],            // last preview customer rows
   invoices: [],        // last preview invoice rows (for Excel)
   selBus: [],          // populated in-place by buildSimpleMS
-  selCust: []          // populated in-place by buildSimpleMS
+  selCust: [],         // populated in-place by buildSimpleMS
+  sender: '',          // collector email returned by backend
+  bcc: ''              // BCC address returned by backend
 };
 
 function _fuExecUrl(){
@@ -8343,6 +8345,8 @@ async function fuBuildPreview(){
     }
     fuState.rows = res.customers || [];
     fuState.invoices = res.invoices || [];
+    fuState.sender = res.sender || '';
+    fuState.bcc = res.bcc || '';
     fuRenderTable();
     const eligible = fuState.rows.filter(r=>r.eligible).length;
     status.innerHTML = `<b>${fuState.rows.length}</b> customers in scope · <b>${eligible}</b> eligible to send · Sender: <code>${res.sender}</code> · BCC: <code>${res.bcc}</code>`;
@@ -8499,7 +8503,7 @@ async function fuOpenBulkSend(){
   if(!checked.length) return;
   document.getElementById('fuModalTitle').textContent = `Bulk Send · ${checked.length} customers`;
   document.getElementById('fuModalSub').textContent = 'Confirm to send follow-up emails to all selected customers';
-  document.getElementById('fuModalMeta').innerHTML = `Sender <code>ar@gofynd.com</code> · BCC <code>sainathgosika@gofynd.com</code> · Cooldown ${document.getElementById('fuForce').checked?'overridden':'enforced (24h)'}`;
+  document.getElementById('fuModalMeta').innerHTML = `Sender <code>${fuState.sender || '(collector email)'}</code> · BCC <code>${fuState.bcc || 'sainathgosika@gofynd.com'}</code> · Cooldown ${document.getElementById('fuForce').checked?'overridden':'enforced (24h)'}`;
   const rows = fuState.rows.filter(r => checked.includes(r.cid));
   const sumInv = rows.reduce((a,r)=>a+r.invoiceTotal,0);
   const sumOs  = rows.reduce((a,r)=>a+r.outstandingTotal,0);
