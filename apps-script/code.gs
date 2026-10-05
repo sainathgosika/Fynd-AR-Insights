@@ -1408,6 +1408,7 @@ function getOpenInvForCid_(ar, cid, opts) {
     var itype  = String(r['Invoice_Type'] || '').trim().toUpperCase();
     var ci     = String(r['Company ID'] || '').trim();
     if (ci !== cid || itype !== 'INV' || status !== 'open') return false;
+    if (Number(r['Outstanding_Amount'] || 0) <= 0) return false;
     if (busFilter && busFilter.indexOf(String(r['Business'] || '')) === -1) return false;
     return true;
   });
@@ -1576,13 +1577,14 @@ function previewOne_(e) {
       html = buildFollowUpHtml_(custName, inv);
     }
     var cooldown = cooldownStatus_(ss, cid);
+    var collectorEmail = Session.getActiveUser().getEmail() || FOLLOWUP_SENDER;
     return respond_({
       ok: true,
       contact: contact,
       preview: html,
       invoices: inv.map(function(r){ return invoiceToPreview_(r); }),
       cooldown: cooldown,
-      sender: FOLLOWUP_SENDER,
+      sender: collectorEmail,
       bcc: FOLLOWUP_BCC
     }, e);
   } catch (err) {
@@ -1608,7 +1610,7 @@ function previewBU_(e) {
     var openInv = ar.filter(function(r){
       var status = String(r['STATUS'] || r['Status'] || '').trim().toLowerCase();
       var itype  = String(r['Invoice_Type'] || '').trim().toUpperCase();
-      return itype === 'INV' && status === 'open';
+      return itype === 'INV' && status === 'open' && Number(r['Outstanding_Amount'] || 0) > 0;
     });
 
     // Group by CID
@@ -1685,7 +1687,8 @@ function previewBU_(e) {
       });
     });
 
-    return respond_({ ok: true, customers: list, invoices: invoiceRows, sender: FOLLOWUP_SENDER, bcc: FOLLOWUP_BCC }, e);
+    var collectorEmail = Session.getActiveUser().getEmail() || FOLLOWUP_SENDER;
+    return respond_({ ok: true, customers: list, invoices: invoiceRows, sender: collectorEmail, bcc: FOLLOWUP_BCC }, e);
 
   } catch (err) {
     return respond_({ ok: false, error: String(err && err.message || err) }, e);
@@ -1802,43 +1805,24 @@ function sendFollowUp_(cid, dryRun, force, templateId, bus) {
   }
 
   var status = 'Sent', errMsg = '', messageId = '';
-  // Track which sender actually ended up being used (may differ from FOLLOWUP_SENDER
-  // if the alias isn't verified on the Apps Script account).
-  var senderUsed = FOLLOWUP_SENDER;
+  // Sender is the active collector's own Google account email (dynamic).
+  var senderUsed = Session.getActiveUser().getEmail() || FOLLOWUP_SENDER;
 
   if (!dryRun) {
-    // Validate that FOLLOWUP_SENDER is a verified "Send mail as" alias.
-    // GmailApp.sendEmail({from: ...}) throws "Invalid argument: from" when the
-    // alias isn't set up — but in some accounts the message still gets delivered
-    // from the user's default sender. To make the log honest, validate first
-    // and fall back cleanly when the alias is missing.
-    var aliases = [];
-    try { aliases = GmailApp.getAliases() || []; } catch (_) { aliases = []; }
-    var aliasOK = (aliases.indexOf(FOLLOWUP_SENDER) !== -1);
-
     try {
       var opts = {
         htmlBody: built.htmlBody,
-        replyTo: FOLLOWUP_REPLY_TO,
+        replyTo: senderUsed,
         name: FOLLOWUP_FROM_NAME,
         bcc: FOLLOWUP_BCC
       };
-      if (aliasOK) {
-        opts.from = FOLLOWUP_SENDER;
-      } else {
-        // No verified alias — send from default sender; record that fact.
-        senderUsed = Session.getActiveUser().getEmail() || '(default account)';
-        errMsg = 'Alias ' + FOLLOWUP_SENDER + ' is not in GmailApp.getAliases() — ' +
-                 'email was sent from default sender (' + senderUsed + '). ' +
-                 'Set up "Send mail as" for ' + FOLLOWUP_SENDER + ' in Gmail settings, then redeploy.';
-      }
       if (contact.cc) opts.cc = contact.cc;
 
       // ===== THREADING =====
       // If we've already emailed this recipient with this exact subject before,
       // reply on the existing thread so Gmail keeps the whole conversation
       // together (subject acts as the key). Otherwise send a brand-new email.
-      var searchSender = aliasOK ? FOLLOWUP_SENDER : senderUsed;
+      var searchSender = senderUsed;
       var existingThread = findExistingThread_(searchSender, contact.to, built.subject);
       if (existingThread) {
         // GmailThread.reply() keeps Gmail-side threading; ‘from’ alias is honoured
