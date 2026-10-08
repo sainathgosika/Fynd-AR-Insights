@@ -332,39 +332,41 @@ function buildEmailFromTemplate_(tpl, customerName, invoices, extraCtx) {
 
   // Reuse the existing invoice table builder for visual consistency
   var rowsHtml = invoices.map(function(r) {
+    var d = Number(r['Days']||0);
+    var dColor = d >= 60 ? '#b91c1c' : (d >= 1 ? '#92400e' : '#15803d');
+    var dLabel = d > 0 ? 'Overdue by ' + d + ' days' : 'Due in ' + Math.abs(d) + ' days';
     return '<tr>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + String(r['Invoice_No'] || '') + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + String(r['Channel'] || '') + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + String(r['Transaction_Type'] || '') + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + fmtDate_(r['Invoice_Date']) + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + fmtDate_(r['Due_Date']) + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(Number(r['Invoice_Amount'] || 0)) + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(Number(r['Outstanding_Amount'] || 0)) + '</td>' +
-      '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;color:' + (Number(r['Days']||0) > 0 ? '#b91c1c' : '#1f2937') + '">' +
-        (Number(r['Days']||0) > 0 ? 'Overdue by ' + Number(r['Days']) + ' days' : 'Due in ' + Math.abs(Number(r['Days']||0)) + ' days') +
-      '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;word-break:break-all">' + String(r['Invoice_No'] || '') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + String(r['Channel'] || '') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + String(r['Transaction_Type'] || '') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Invoice_Date']) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Due_Date']) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(Number(r['Invoice_Amount'] || 0)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(Number(r['Outstanding_Amount'] || 0)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap;color:' + dColor + '">' + dLabel + '</td>' +
     '</tr>';
   }).join('');
   rowsHtml += '<tr style="background:#f8fafc;font-weight:600">' +
-      '<td colspan="5" style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Total :</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(sumInv) + '</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(sumOs) + '</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb"></td>' +
+      '<td colspan="5" style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right">Total :</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(sumInv) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(sumOs) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb"></td>' +
     '</tr>';
   var table =
-    '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:14px 0;font-family:Arial,sans-serif">' +
+    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0">' +
+    '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;min-width:560px;font-family:Arial,sans-serif">' +
       '<thead><tr style="background:#f1f5f9">' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Invoice Number</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Channel</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Transaction Type</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Invoice Date</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Due Date</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Invoice Amount</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Outstanding Amount</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Days</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Invoice No.</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Channel</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left">Transaction Type</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Inv. Date</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Due Date</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">Inv. Amount</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">Outstanding</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Status</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
-    '</table>';
+    '</table></div>';
 
   // Substitute tokens in every editable field. Subject stays plain text;
   // body fields are HTML-allowed, but Enter-key newlines from the textarea
@@ -377,7 +379,7 @@ function buildEmailFromTemplate_(tpl, customerName, invoices, extraCtx) {
 
   // Assemble body. Each section becomes a <p> only if non-empty so a sparse
   // template doesn't produce ugly empty paragraphs.
-  var pieces = ['<div style="font-family:Arial,sans-serif;font-size:14px;color:#1f2937;max-width:920px;line-height:1.55">'];
+  var pieces = ['<div style="font-family:Arial,sans-serif;font-size:13px;color:#1f2937;max-width:680px;line-height:1.55">'];
   if (greeting) pieces.push('<p>' + greeting + '</p>');
   if (above)    pieces.push('<p>' + above + '</p>');
   pieces.push(table);
@@ -1465,43 +1467,44 @@ function buildFollowUpHtml_(customerName, invoices) {
 
     rowsHtml +=
       '<tr>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + (r['Invoice_No'] || '') + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + (r['Channel'] || '') + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + (r['Transaction_Type'] || '') + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + fmtDate_(r['Invoice_Date']) + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px">' + fmtDate_(r['Due_Date']) + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(invAmt) + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(osAmt) + '</td>' +
-        '<td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:12px;color:' + daysColor + '">' + daysLabel + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;word-break:break-all">' + (r['Invoice_No'] || '') + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + (r['Channel'] || '') + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + (r['Transaction_Type'] || '') + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Invoice_Date']) + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Due_Date']) + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(invAmt) + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(osAmt) + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap;color:' + daysColor + '">' + daysLabel + '</td>' +
       '</tr>';
   });
 
   // Totals row — both Invoice and Outstanding totals
   rowsHtml +=
     '<tr style="background:#f8fafc;font-weight:700">' +
-      '<td colspan="5" style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Total :</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(sumInv) + '</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">' + fmtINR_(sumOs) + '</td>' +
-      '<td style="padding:10px;border:1px solid #e5e7eb"></td>' +
+      '<td colspan="5" style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right">Total :</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(sumInv) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">' + fmtINR_(sumOs) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb"></td>' +
     '</tr>';
 
   var table =
-    '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:14px 0;font-family:Arial,sans-serif">' +
+    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0">' +
+    '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;min-width:560px;font-family:Arial,sans-serif">' +
       '<thead><tr style="background:#f1f5f9">' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Invoice Number</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Channel</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Transaction Type</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Invoice Date</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Due Date</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Invoice Amount</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:right">Outstanding Amount</th>' +
-        '<th style="padding:9px 10px;border:1px solid #e5e7eb;font-size:12px;text-align:left">Days</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Invoice No.</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Channel</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left">Transaction Type</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Inv. Date</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Due Date</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">Inv. Amount</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:right;white-space:nowrap">Outstanding</th>' +
+        '<th style="padding:7px 8px;border:1px solid #e5e7eb;font-size:11px;text-align:left;white-space:nowrap">Status</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
-    '</table>';
+    '</table></div>';
 
   var body =
-    '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1f2937;max-width:920px;line-height:1.55">' +
+    '<div style="font-family:Arial,sans-serif;font-size:13px;color:#1f2937;max-width:680px;line-height:1.55">' +
       '<p>Hi Team,</p>' +
       '<p>I hope you are doing well.</p>' +
       '<p>Please find below the current statement of your account with us. As of today, the following invoice(s) remain outstanding:</p>' +
