@@ -8410,6 +8410,11 @@ function fuRenderTable(){
   // Wire row events
   tbody.querySelectorAll('.fu-row-chk').forEach(cb => cb.addEventListener('change', fuUpdateSendButton));
   tbody.querySelectorAll('.fu-preview-one').forEach(btn => btn.addEventListener('click', e => fuPreviewOne(btn.dataset.cid)));
+  tbody.querySelectorAll('.fu-goto-worklist').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    showTab('worklist');
+    setTimeout(() => { if (typeof wlOpenNotesModal === 'function') wlOpenNotesModal(btn.dataset.cid, btn.dataset.cust); }, 400);
+  }));
   fuUpdateSendButton();
 }
 
@@ -11537,14 +11542,20 @@ function wlRenderTable(){
       <td class="px-3 py-2 text-right font-semibold">${wlFmtINR(r.openOs)}</td>
       <td class="px-3 py-2">${fuBadge}</td>
       <td class="px-3 py-2">
-        <button class="chip wl-row-open" style="padding:2px 10px;font-size:11px">📝 Open</button>
+        <button class="chip wl-row-open" style="padding:2px 10px;font-size:11px;margin-right:4px">📝 Open</button>
+        <button class="chip wl-goto-followup" data-cid="${wlEsc(r.cid)}" data-cust="${wlEsc(r.customer)}" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📧 Email</button>
       </td>
     </tr>`;
   }).join('');
-  tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click', () => {
+tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click', e => {
+    if (e.target.closest('.wl-goto-followup')) return;
     const cid = tr.getAttribute('data-wl-open');
     const cust = tr.getAttribute('data-wl-cust');
     wlOpenNotesModal(cid, cust);
+  }));
+  tb.querySelectorAll('.wl-goto-followup').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    showTab('followups');
   }));
 }
 
