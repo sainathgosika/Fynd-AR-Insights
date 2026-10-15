@@ -616,10 +616,7 @@ function statementEmailRoute_(e) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
       return respond_({ ok:false, error:'Invalid recipient email: ' + to }, e);
     }
-    var senderUsed = FOLLOWUP_SENDER;
-    var aliases = [];
-    try { aliases = GmailApp.getAliases() || []; } catch (_) {}
-    var aliasOK = (aliases.indexOf(FOLLOWUP_SENDER) !== -1);
+    var senderUsed = Session.getActiveUser().getEmail() || FOLLOWUP_SENDER;
     var opts = {
       htmlBody: html,
       replyTo:  FOLLOWUP_REPLY_TO,
