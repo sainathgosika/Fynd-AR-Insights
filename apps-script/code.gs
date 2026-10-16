@@ -336,7 +336,7 @@ function buildEmailFromTemplate_(tpl, customerName, invoices, extraCtx) {
     var dColor = d >= 60 ? '#b91c1c' : (d >= 1 ? '#92400e' : '#15803d');
     var dLabel = d > 0 ? 'Overdue by ' + d + ' days' : 'Due in ' + Math.abs(d) + ' days';
     return '<tr>' +
-      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;word-break:break-all">' + String(r['Invoice_No'] || '') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + String(r['Invoice_No'] || '') + '</td>' +
       '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + String(r['Channel'] || '') + '</td>' +
       '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + String(r['Transaction_Type'] || '') + '</td>' +
       '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Invoice_Date']) + '</td>' +
@@ -1464,7 +1464,7 @@ function buildFollowUpHtml_(customerName, invoices) {
 
     rowsHtml +=
       '<tr>' +
-        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;word-break:break-all">' + (r['Invoice_No'] || '') + '</td>' +
+        '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + (r['Invoice_No'] || '') + '</td>' +
         '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + (r['Channel'] || '') + '</td>' +
         '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px">' + (r['Transaction_Type'] || '') + '</td>' +
         '<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:11px;white-space:nowrap">' + fmtDate_(r['Invoice_Date']) + '</td>' +
