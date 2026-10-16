@@ -465,10 +465,10 @@ HTML = r"""<!DOCTYPE html>
      user has a valid session. */
   #loginScreen{
     position:fixed;inset:0;z-index:9999;
-    display:none;align-items:flex-start;justify-content:flex-start;
+    display:none;align-items:center;justify-content:center;
     background:linear-gradient(150deg,#0f1923 0%,#1a2f3a 40%,#0f1923 100%);
     color:#f5f2ed;font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
-    min-height:100vh;padding:48px;
+    min-height:100vh;
   }
   #loginScreen.visible{display:flex;}
   #loginScreen .lg-card{
@@ -14432,7 +14432,7 @@ function _authInitGoogleSignIn(){
       btnContainer.innerHTML = '';
       gAcc.renderButton(btnContainer, {
         type:  'standard',
-        theme: 'filled_blue',
+        theme: 'outline',
         size:  'large',
         text:  'signin_with',
         shape: 'rectangular',
