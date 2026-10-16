@@ -466,18 +466,26 @@ HTML = r"""<!DOCTYPE html>
   #loginScreen{
     position:fixed;inset:0;z-index:9999;
     display:none;align-items:center;justify-content:center;
-    background:linear-gradient(135deg,#1f2a2e 0%, #2c4a52 45%, #1f2a2e 100%);
+    background:linear-gradient(150deg,#0f1923 0%,#1a2f3a 40%,#0f1923 100%);
     color:#f5f2ed;font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
+    min-height:100vh;
   }
   #loginScreen.visible{display:flex;}
   #loginScreen .lg-card{
-    background:rgba(255,255,255,0.98);color:#1f2a2e;
-    width:min(400px, 92vw);padding:28px 26px;border-radius:16px;
-    box-shadow:0 24px 60px rgba(0,0,0,0.35),0 4px 12px rgba(0,0,0,0.15);
-    border:1px solid rgba(255,255,255,0.6);
+    background:#ffffff;color:#1f2a2e;
+    width:min(420px, 94vw);padding:36px 32px 28px;border-radius:20px;
+    box-shadow:0 32px 80px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);
+    border:1px solid rgba(255,255,255,0.12);
+    text-align:center;
   }
-  #loginScreen h1{font-size:18px;font-weight:700;color:#2c4a52;margin:0 0 4px;letter-spacing:-.02em;}
-  #loginScreen .lg-sub{font-size:12px;color:#6b6660;margin-bottom:18px;}
+  #loginScreen .lg-logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;}
+  #loginScreen .lg-logo-icon{width:44px;height:44px;}
+  #loginScreen .lg-logo-name{font-size:28px;font-weight:800;color:#1f2a2e;letter-spacing:-.03em;}
+  #loginScreen .lg-product{font-size:12px;color:#64748b;margin-bottom:24px;letter-spacing:.02em;text-transform:uppercase;font-weight:500;}
+  #loginScreen .lg-divider-label{font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;}
+  #loginScreen h1{font-size:18px;font-weight:700;color:#2c4a52;margin:0 0 4px;letter-spacing:-.02em;display:none;}
+  #loginScreen .lg-sub{font-size:12px;color:#64748b;margin-bottom:20px;line-height:1.5;}
+  #loginScreen .lg-footer{font-size:11px;color:#94a3b8;margin-top:18px;line-height:1.5;}
   #loginScreen label{font-size:11px;font-weight:600;color:#2c4a52;text-transform:uppercase;letter-spacing:.05em;display:block;margin:12px 0 4px;}
   #loginScreen .lg-input-wrap{position:relative;}
   #loginScreen input[type="text"],
@@ -769,13 +777,23 @@ HTML = r"""<!DOCTYPE html>
      the Google-identity admin (sainathgosika@gofynd.com) skips this. -->
 <div id="loginScreen" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
   <div class="lg-card">
-    <h1 id="lgTitle">Receivables · AR Control Tower</h1>
-    <div class="lg-sub">Sign in with your <b>@gofynd.com</b> Google account to continue. Only Gofynd employees are allowed.</div>
+    <!-- Fynd Logo -->
+    <div class="lg-logo-wrap">
+      <svg class="lg-logo-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="44" height="44" rx="10" fill="#1f2a2e"/>
+        <path d="M22 8C14.268 8 8 14.268 8 22C8 29.732 14.268 36 22 36C29.732 36 36 29.732 36 22C36 14.268 29.732 8 22 8ZM22 12C25.2 12 28.1 13.3 30.2 15.4L15.4 30.2C13.3 28.1 12 25.2 12 22C12 16.477 16.477 12 22 12ZM22 32C18.8 32 15.9 30.7 13.8 28.6L28.6 13.8C30.7 15.9 32 18.8 32 22C32 27.523 27.523 32 22 32Z" fill="#4ade80"/>
+        <path d="M17 19H27M17 22H24M17 25H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="lg-logo-name">Fynd</span>
+    </div>
+    <div class="lg-product">Receivables · AR Control Tower</div>
 
-    <!-- Google Sign-In block — the ONLY visible auth control. GIS paints
-         its own button into #gsiBtnContainer. When the user is already
-         signed in to a @gofynd.com Google account on this device, One Tap
-         recognises them automatically without any clicks. -->
+    <h1 id="lgTitle" style="display:none">Receivables · AR Control Tower</h1>
+
+    <div class="lg-divider-label">Sign in with Fynd Google Account</div>
+    <div class="lg-sub">Only authorised <b>@gofynd.com</b> accounts can access this platform.</div>
+
+    <!-- Google Sign-In block -->
     <div class="lg-google-block" id="lgGoogleBlock">
       <div id="gsiBtnContainer" role="status" aria-live="polite" aria-label="Sign in with Google">
         <div class="lg-google-loading">Preparing Google Sign-In…</div>
@@ -783,6 +801,7 @@ HTML = r"""<!DOCTYPE html>
       <div class="lg-google-hint" id="lgGoogleHint">Already signed in with your Gofynd Google account? You should be recognised automatically.</div>
       <div id="lgGoogleError" class="lg-error" role="alert"></div>
     </div>
+    <div class="lg-footer">Contact <b>sainathgosika@gofynd.com</b> for access.</div>
 
     <!-- Password fallback lives here but is NEVER shown in normal flow.
          It is emergency-only, revealed by typing the break-glass sequence
@@ -8460,8 +8479,8 @@ function fuRenderTable(){
       <td class="px-3 py-2 ${statusClass}">${r.reason}</td>
       <td class="px-3 py-2" style="white-space:nowrap">
         ${r.eligible ? `<button class="chip fu-preview-one" data-cid="${r.cid}" style="margin-right:4px">👁 Preview</button>` : ''}
-        <button class="chip fu-goto-worklist" data-cid="${r.cid}" data-cust="${(r.customer||'').replace(/"/g,'&quot;')}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer;opacity:1">📝 Note</button>
-        </td>
+        <button class="chip fu-goto-worklist" data-cid="${r.cid}" data-cust="${(r.customer||'').replace(/"/g,'&quot;')}" title="Open Worklist notes for this customer" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📝 Note</button>
+      </td>
     </tr>`;
   }).join('');
   tbody.innerHTML = html;
@@ -11718,9 +11737,6 @@ function wlRenderTable(){
   tb.querySelectorAll('.wl-goto-followup').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
     showTab('followups');
-    setTimeout(() => {
-      try { if (typeof fuPreviewOne === 'function') fuPreviewOne(cid); } catch(_){}
-    }, 800);
   }));
 }
 
