@@ -465,27 +465,27 @@ HTML = r"""<!DOCTYPE html>
      user has a valid session. */
   #loginScreen{
     position:fixed;inset:0;z-index:9999;
-    display:none;align-items:center;justify-content:center;
+    display:none;align-items:flex-start;justify-content:flex-start;
     background:linear-gradient(150deg,#0f1923 0%,#1a2f3a 40%,#0f1923 100%);
     color:#f5f2ed;font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
-    min-height:100vh;
+    min-height:100vh;padding:48px;
   }
   #loginScreen.visible{display:flex;}
   #loginScreen .lg-card{
     background:#ffffff;color:#1f2a2e;
-    width:min(420px, 94vw);padding:36px 32px 28px;border-radius:20px;
+    width:min(440px, 94vw);padding:36px 36px 28px;border-radius:20px;
     box-shadow:0 32px 80px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);
-    border:1px solid rgba(255,255,255,0.12);
-    text-align:center;
+    border:1px solid rgba(255,255,255,0.08);
+    text-align:left;
   }
-  #loginScreen .lg-logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;}
-  #loginScreen .lg-logo-icon{width:44px;height:44px;}
-  #loginScreen .lg-logo-name{font-size:28px;font-weight:800;color:#1f2a2e;letter-spacing:-.03em;}
-  #loginScreen .lg-product{font-size:12px;color:#64748b;margin-bottom:24px;letter-spacing:.02em;text-transform:uppercase;font-weight:500;}
-  #loginScreen .lg-divider-label{font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;}
+  #loginScreen .lg-logo-wrap{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+  #loginScreen .lg-logo-icon{width:40px;height:40px;flex-shrink:0;}
+  #loginScreen .lg-logo-name{font-size:26px;font-weight:800;color:#111827;letter-spacing:-.03em;line-height:1;}
+  #loginScreen .lg-product{font-size:13px;color:#94a3b8;margin-bottom:28px;font-weight:400;}
+  #loginScreen .lg-divider-label{font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;}
   #loginScreen h1{font-size:18px;font-weight:700;color:#2c4a52;margin:0 0 4px;letter-spacing:-.02em;display:none;}
-  #loginScreen .lg-sub{font-size:12px;color:#64748b;margin-bottom:20px;line-height:1.5;}
-  #loginScreen .lg-footer{font-size:11px;color:#94a3b8;margin-top:18px;line-height:1.5;}
+  #loginScreen .lg-sub{font-size:12px;color:#94a3b8;margin-top:10px;line-height:1.6;text-align:center;}
+  #loginScreen .lg-footer{font-size:11px;color:#94a3b8;margin-top:0;line-height:1.5;text-align:center;}
   #loginScreen label{font-size:11px;font-weight:600;color:#2c4a52;text-transform:uppercase;letter-spacing:.05em;display:block;margin:12px 0 4px;}
   #loginScreen .lg-input-wrap{position:relative;}
   #loginScreen input[type="text"],
@@ -779,19 +779,13 @@ HTML = r"""<!DOCTYPE html>
   <div class="lg-card">
     <!-- Fynd Logo -->
     <div class="lg-logo-wrap">
-      <svg class="lg-logo-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="44" height="44" rx="10" fill="#1f2a2e"/>
-        <path d="M22 8C14.268 8 8 14.268 8 22C8 29.732 14.268 36 22 36C29.732 36 36 29.732 36 22C36 14.268 29.732 8 22 8ZM22 12C25.2 12 28.1 13.3 30.2 15.4L15.4 30.2C13.3 28.1 12 25.2 12 22C12 16.477 16.477 12 22 12ZM22 32C18.8 32 15.9 30.7 13.8 28.6L28.6 13.8C30.7 15.9 32 18.8 32 22C32 27.523 27.523 32 22 32Z" fill="#4ade80"/>
-        <path d="M17 19H27M17 22H24M17 25H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
+      <img src="https://cdn.brandfetch.io/id7q4N5Xqp/w/3750/h/3750/theme/dark/idNy5EIX-i.png?c=1dxbfHSJFAPEGdCLU4o5B" class="lg-logo-icon" alt="Fynd" style="object-fit:contain;" onerror="this.style.display='none'"/>
       <span class="lg-logo-name">Fynd</span>
     </div>
     <div class="lg-product">Receivables · AR Control Tower</div>
-
     <h1 id="lgTitle" style="display:none">Receivables · AR Control Tower</h1>
 
     <div class="lg-divider-label">Sign in with Fynd Google Account</div>
-    <div class="lg-sub">Only authorised <b>@gofynd.com</b> accounts can access this platform.</div>
 
     <!-- Google Sign-In block -->
     <div class="lg-google-block" id="lgGoogleBlock">
@@ -801,7 +795,7 @@ HTML = r"""<!DOCTYPE html>
       <div class="lg-google-hint" id="lgGoogleHint">Already signed in with your Gofynd Google account? You should be recognised automatically.</div>
       <div id="lgGoogleError" class="lg-error" role="alert"></div>
     </div>
-    <div class="lg-footer">Contact <b>sainathgosika@gofynd.com</b> for access.</div>
+    <div class="lg-sub">Only authorised <b>@gofynd.com</b> and <b>@fynd.com</b> accounts can access this platform.</div>
 
     <!-- Password fallback lives here but is NEVER shown in normal flow.
          It is emergency-only, revealed by typing the break-glass sequence
@@ -824,7 +818,7 @@ HTML = r"""<!DOCTYPE html>
     </div>
 
     <div class="lg-footer">
-      Contact <a href="mailto:sainathgosika@gofynd.com" style="color:#2c4a52;font-weight:600;">sainathgosika@gofynd.com</a> for access.
+      Contact <a href="mailto:sainathgosika@gofynd.com" style="color:#64748b;font-weight:600;">sainathgosika@gofynd.com</a> for access.
     </div>
   </div>
 </div>
