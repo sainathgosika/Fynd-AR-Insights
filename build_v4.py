@@ -13979,7 +13979,7 @@ async function acmSave(){
   const password = '';
   if(!email){ msg.textContent = 'Email is required'; msg.style.color = '#b91c1c'; return; }
   // Domain gate: only @gofynd.com may be provisioned.
-  if (!/@gofynd\\.com$/i.test(email)) {
+  if (!/@gofynd\.com$/i.test(email)) {
     msg.textContent = 'Only @gofynd.com email addresses can be provisioned.';
     msg.style.color = '#b91c1c'; return;
   }
