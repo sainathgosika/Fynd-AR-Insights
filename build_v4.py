@@ -8411,8 +8411,17 @@ function fuRenderTable(){
   tbody.querySelectorAll('.fu-preview-one').forEach(btn => btn.addEventListener('click', e => fuPreviewOne(btn.dataset.cid)));
   tbody.querySelectorAll('.fu-goto-worklist').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
+    const cid = btn.dataset.cid;
+    const cust = btn.dataset.cust;
     showTab('worklist');
-    setTimeout(() => { if (typeof wlOpenNotesModal === 'function') wlOpenNotesModal(btn.dataset.cid, btn.dataset.cust); }, 400);
+    if (window._wlLoaded) {
+      setTimeout(() => { if (typeof wlOpenNotesModal === 'function') wlOpenNotesModal(cid, cust); }, 80);
+    } else {
+      const poll = setInterval(() => {
+        if (window._wlLoaded) { clearInterval(poll); wlOpenNotesModal(cid, cust); }
+      }, 100);
+      setTimeout(() => clearInterval(poll), 6000);
+    }
   }));
   fuUpdateSendButton();
 }
@@ -11556,7 +11565,7 @@ tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click
     e.stopPropagation();
     const cid = btn.dataset.cid;
     showTab('followups');
-    setTimeout(() => { if (typeof fuPreviewOne === 'function') fuPreviewOne(cid); }, 500);
+    setTimeout(() => { if (typeof fuPreviewOne === 'function') fuPreviewOne(cid); }, 150);
   }));
 }
 
