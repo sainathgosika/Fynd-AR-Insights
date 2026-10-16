@@ -1501,20 +1501,75 @@ HTML = r"""<!DOCTYPE html>
 
       <!-- TAB BAR -->
       <div class="flex items-center gap-1 border-b border-slate-200" role="tablist" id="alTabBar">
-        <button type="button" class="al-tab al-tab-active" data-al-tab="email" role="tab" aria-selected="true">📨 Email Sends</button>
+        <button type="button" class="al-tab al-tab-active" data-al-tab="overview" role="tab" aria-selected="true">📊 Overview</button>
+        <button type="button" class="al-tab" data-al-tab="email" role="tab" aria-selected="false">📨 Email Sends</button>
         <button type="button" class="al-tab" data-al-tab="worklist" role="tab" aria-selected="false">📒 Worklist Activity</button>
       </div>
 
+      <!-- ==================== TAB PANE: OVERVIEW ==================== -->
+      <div id="alTabPaneOverview" class="al-tab-pane space-y-4" role="tabpanel">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="text-[12px] font-semibold text-slate-700">📊 Activity Overview · Combined summary across emails &amp; notes</div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <select id="ovRange" class="chip" style="padding:6px 10px">
+              <option value="today">Today</option>
+              <option value="7d">Last 7 days</option>
+              <option value="month" selected>This month</option>
+              <option value="all">All time</option>
+            </select>
+            <input id="ovCustSearch" type="text" class="chip" placeholder="Filter by customer / CID…" style="padding:6px 10px;min-width:200px"/>
+            <select id="ovActionFilter" class="chip" style="padding:6px 10px">
+              <option value="">All actions</option>
+              <option value="email">📧 Emails only</option>
+              <option value="note">📝 Notes only</option>
+            </select>
+            <button id="ovRefresh" class="chip" style="background:var(--c-accent);color:#fff;border-color:var(--c-accent);">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div class="kpi"><div class="kpi-l">Emails Sent</div><div class="kpi-v" id="ovK1" style="color:#15803d">—</div></div>
+          <div class="kpi"><div class="kpi-l">Emails Failed</div><div class="kpi-v" id="ovK2" style="color:#b91c1c">—</div></div>
+          <div class="kpi"><div class="kpi-l">Notes Logged</div><div class="kpi-v" id="ovK3">—</div></div>
+          <div class="kpi"><div class="kpi-l">Customers Contacted</div><div class="kpi-v" id="ovK4">—</div></div>
+          <div class="kpi"><div class="kpi-l">Outstanding Chased</div><div class="kpi-v" id="ovK5">—</div></div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Recent Activity Feed</div>
+          <div class="overflow-x-auto rounded-lg border border-slate-200" style="max-height:460px;overflow-y:auto">
+            <table class="w-full text-[12px]">
+              <thead class="bg-slate-50 sticky top-0"><tr class="text-left text-slate-600">
+                <th class="px-3 py-2 whitespace-nowrap">Time</th>
+                <th class="px-3 py-2">Action</th>
+                <th class="px-3 py-2">Customer</th>
+                <th class="px-3 py-2">By</th>
+                <th class="px-3 py-2">Detail</th>
+                <th class="px-3 py-2 text-right whitespace-nowrap">Amount</th>
+                <th class="px-3 py-2">Status / Outcome</th>
+              </tr></thead>
+              <tbody id="ovTbody"><tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Click Refresh to load overview.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-2" id="ovRowCount"></div>
+        </div>
+      </div><!-- /alTabPaneOverview -->
+
       <!-- ==================== TAB PANE: EMAIL SENDS ==================== -->
-      <div id="alTabPaneEmail" class="al-tab-pane space-y-3" role="tabpanel">
+      <div id="alTabPaneEmail" class="al-tab-pane space-y-3" role="tabpanel" style="display:none">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="text-[12px] font-semibold text-slate-700">📨 Email Sends · <span class="text-[11px] font-normal text-slate-500">reads <span class="font-mono">Email_Log</span> sheet</span></div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <input id="alFrom" type="date" class="chip" style="padding:6px 10px"/>
           <input id="alTo" type="date" class="chip" style="padding:6px 10px"/>
+          <input id="alCustSearch" type="text" class="chip" placeholder="Search customer / CID…" style="padding:6px 10px;min-width:180px"/>
+          <select id="alStatusFilter" class="chip" style="padding:6px 10px">
+            <option value="">All status</option>
+            <option value="sent">✅ Sent</option>
+            <option value="failed">❌ Failed</option>
+          </select>
           <button id="alRefresh" class="chip" style="background:var(--c-accent);color:#fff;border-color:var(--c-accent);">↻ Refresh</button>
         </div>
       </div>
+      <div class="text-[11px] text-slate-500" id="alFilterCount"></div>
       <div class="grid grid-cols-2 md:grid-cols-5 gap-2" id="alKpis">
         <div class="kpi"><div class="kpi-l">Total Sends</div><div class="kpi-v" id="alK1">—</div></div>
         <div class="kpi"><div class="kpi-l">Successful</div><div class="kpi-v" id="alK2" style="color:#15803d">—</div></div>
@@ -4163,7 +4218,7 @@ function showTab(key){
   }
   if (key === 'activity' && !window._alLoaded) {
     window._alLoaded = true;
-    loadActivityLog();
+    loadActivityOverview(); // Load Overview tab by default
   }
   // Every time the ACM tab is opened, re-render the tabs-granted checkbox
   // list from the sidebar. This keeps the form in sync if new tabs were
@@ -8397,13 +8452,17 @@ function fuRenderTable(){
       <td class="px-3 py-2 font-mono text-[11px]">${r.cid}</td>
       <td class="px-3 py-2">${r.customer||'—'}</td>
       <td class="px-3 py-2">${r.bu||'—'}</td>
-      <td class="px-3 py-2 text-[11px]" style="max-width:180px;overflow:hidden">${r.toEmail ? `<span title="${r.toEmail.replace(/"/g,'&quot;')}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;cursor:help">${r.toEmail}</span>` : '<span style="color:#b91c1c">— no contact —</span>'}</td>
+      <td class="px-3 py-2 text-[11px]">${r.toEmail||'<span style="color:#b91c1c">— no contact —</span>'}</td>
       <td class="px-3 py-2 text-right">${r.count}</td>
       <td class="px-3 py-2 text-right">${fuFmtINR(r.invoiceTotal)}</td>
       <td class="px-3 py-2 text-right">${fuFmtINR(r.outstandingTotal)}</td>
       <td class="px-3 py-2 text-right">${r.oldestDays}</td>
       <td class="px-3 py-2 ${statusClass}">${r.reason}</td>
-      <td class="px-3 py-2" style="white-space:nowrap">${r.eligible ? `<button class="chip fu-preview-one" data-cid="${r.cid}" style="margin-right:4px">👁 Preview</button>` : ''}<button class="chip fu-goto-worklist" data-cid="${r.cid}" data-cust="${(r.customer||'').replace(/"/g,'&quot;')}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📝 Note</button></td>   </tr>`;
+      <td class="px-3 py-2" style="white-space:nowrap">
+        ${r.eligible ? `<button class="chip fu-preview-one" data-cid="${r.cid}" style="margin-right:4px">👁 Preview</button>` : ''}
+        <button class="chip fu-goto-worklist" data-cid="${r.cid}" data-cust="${(r.customer||'').replace(/"/g,'&quot;')}" title="Open Worklist notes for this customer" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📝 Note</button>
+      </td>
+    </tr>`;
   }).join('');
   tbody.innerHTML = html;
   // Wire row events
@@ -8414,14 +8473,7 @@ function fuRenderTable(){
     const cid = btn.dataset.cid;
     const cust = btn.dataset.cust;
     showTab('worklist');
-    if (window._wlLoaded) {
-      setTimeout(() => { if (typeof wlOpenNotesModal === 'function') wlOpenNotesModal(cid, cust); }, 80);
-    } else {
-      const poll = setInterval(() => {
-        if (window._wlLoaded) { clearInterval(poll); wlOpenNotesModal(cid, cust); }
-      }, 100);
-      setTimeout(() => clearInterval(poll), 6000);
-    }
+    setTimeout(() => { if (typeof wlOpenNotesModal === 'function') wlOpenNotesModal(cid, cust); }, 400);
   }));
   fuUpdateSendButton();
 }
@@ -10742,6 +10794,90 @@ function wireWorkflows(){
 }
 
 // ===== Activity Log module =====
+
+// --- Overview tab ---
+async function loadActivityOverview(){
+  const rangeVal = document.getElementById('ovRange').value;
+  const custSearch = (document.getElementById('ovCustSearch').value||'').toLowerCase().trim();
+  const actionFilter = document.getElementById('ovActionFilter').value;
+  const tbody = document.getElementById('ovTbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Loading…</td></tr>';
+  const today = new Date();
+  let fromDate, toDate = today.toISOString().slice(0,10);
+  if(rangeVal==='today') fromDate = toDate;
+  else if(rangeVal==='7d'){ const d=new Date(today); d.setDate(d.getDate()-7); fromDate=d.toISOString().slice(0,10); }
+  else if(rangeVal==='month') fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  else fromDate = '2020-01-01';
+  try{
+    const [emailRes, walRes] = await Promise.all([
+      _fuJsonp('activityLog', {from: fromDate, to: toDate}),
+      _fuJsonp('dailyReport', {range:'custom', from:fromDate, to:toDate, collector:'', outcome:'', search:''})
+    ]);
+    const emailRows = (emailRes&&emailRes.ok) ? (emailRes.rows||[]) : [];
+    const walRows   = (walRes&&walRes.ok)     ? (walRes.rows||[]) : [];
+    const emailSummary = (emailRes&&emailRes.summary)||{};
+    // KPIs
+    const sent   = emailRows.filter(r=>String(r['Status']||'').toLowerCase()==='sent').length;
+    const failed = emailRows.filter(r=>String(r['Status']||'').toLowerCase()==='failed').length;
+    const custSet = new Set([...emailRows.map(r=>r['CID']), ...walRows.map(r=>r['CID']||r['cid'])].filter(Boolean));
+    document.getElementById('ovK1').textContent = sent;
+    document.getElementById('ovK2').textContent = failed;
+    document.getElementById('ovK3').textContent = walRows.length;
+    document.getElementById('ovK4').textContent = custSet.size;
+    document.getElementById('ovK5').textContent = fuFmtINR(emailSummary.totalOs||0);
+    // Build unified feed
+    const esc = s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const feed = [];
+    if(actionFilter !== 'note') emailRows.forEach(r=>{
+      feed.push({ts:r['Timestamp']||'',action:'📧 Email',customer:r['Customer']||'',cid:r['CID']||'',
+        by:r['Sender']||'',detail:'To: '+(r['To']||'').split(',')[0],
+        amount:r['Outstanding Total']||0,status:r['Status']||'',ok:String(r['Status']||'').toLowerCase()==='sent'});
+    });
+    if(actionFilter !== 'email') walRows.forEach(r=>{
+      feed.push({ts:r['Timestamp']||r['ts']||'',action:'📝 Note',
+        customer:r['Customer Name']||r['customer']||'',cid:r['CID']||r['cid']||'',
+        by:r['Collector Email']||r['collector']||'',
+        detail:(r['Note Text']||r['note']||'').slice(0,70),
+        amount:r['P2P Amount']||0,status:r['Outcome']||r['outcome']||'—',ok:true});
+    });
+    feed.sort((a,b)=>b.ts>a.ts?1:-1);
+    const filtered = custSearch ? feed.filter(r=>r.customer.toLowerCase().includes(custSearch)||r.cid.toLowerCase().includes(custSearch)) : feed;
+    document.getElementById('ovRowCount').textContent = `${filtered.length} of ${feed.length} activities`;
+    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No activity in range.</td></tr>'; return; }
+    tbody.innerHTML = filtered.map(r=>{
+      const c = r.ok?'#15803d':'#b91c1c';
+      return `<tr class="border-t border-slate-100 hover:bg-slate-50">
+        <td class="px-3 py-2 text-[11px] whitespace-nowrap">${esc(String(r.ts).replace('T',' ').slice(0,16))}</td>
+        <td class="px-3 py-2 font-semibold text-[12px]">${r.action}</td>
+        <td class="px-3 py-2">${esc(r.customer)} <span class="text-[10px] text-slate-400 font-mono">${esc(r.cid)}</span></td>
+        <td class="px-3 py-2 text-[11px]">${esc(r.by)}</td>
+        <td class="px-3 py-2 text-[11px]" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.detail)}">${esc(r.detail)}</td>
+        <td class="px-3 py-2 text-right text-[11px] whitespace-nowrap">${r.amount?fuFmtINR(r.amount):'—'}</td>
+        <td class="px-3 py-2 font-semibold text-[11px]" style="color:${c}">${esc(r.status)}</td>
+      </tr>`;
+    }).join('');
+  }catch(err){ tbody.innerHTML=`<tr><td colspan="7" class="px-3 py-6 text-center" style="color:#b91c1c">${err.message}</td></tr>`; }
+}
+
+// --- Email Sends client-side filter ---
+function alFilterEmailTable(){
+  const search = (document.getElementById('alCustSearch')?.value||'').toLowerCase().trim();
+  const status = (document.getElementById('alStatusFilter')?.value||'').toLowerCase();
+  let shown=0, total=0;
+  document.querySelectorAll('#alTbody tr[data-al-cid]').forEach(tr=>{
+    total++;
+    const cust = tr.dataset.alCust||'';
+    const cid  = (tr.dataset.alCid||'').toLowerCase();
+    const st   = tr.dataset.alStatus||'';
+    const matchSearch = !search || cust.includes(search) || cid.includes(search);
+    const matchStatus = !status || st.includes(status);
+    tr.style.display = (matchSearch&&matchStatus)?'':'none';
+    if(matchSearch&&matchStatus) shown++;
+  });
+  const el = document.getElementById('alFilterCount');
+  if(el) el.textContent = (search||status) ? `Showing ${shown} of ${total} rows` : '';
+}
+
 async function loadActivityLog(){
   const from = document.getElementById('alFrom').value;
   const to   = document.getElementById('alTo').value;
@@ -10771,17 +10907,19 @@ async function loadActivityLog(){
         const st = String(r['Status']||'').toLowerCase();
         const color = st==='sent' ? '#15803d' : (st==='failed' ? '#b91c1c' : '#92400e');
         const err = r['Error'] || '';
-        return `<tr class="border-t border-slate-100">
-          <td class="px-3 py-2 text-[11px]">${String(r['Timestamp']||'').replace('T',' ').slice(0,19)}</td>
-          <td class="px-3 py-2 font-mono text-[11px]">${r['CID']||''}</td>
-          <td class="px-3 py-2">${r['Customer']||''}</td>
-          <td class="px-3 py-2">${r['BU']||''}</td>
-          <td class="px-3 py-2 text-[11px]">${r['To']||''}</td>
-          <td class="px-3 py-2 text-[11px]">${r['Sender']||''}</td>
+        const cust = esc(r['Customer']||'');
+        const cid = esc(r['CID']||'');
+        return `<tr class="border-t border-slate-100" data-al-cid="${cid}" data-al-cust="${cust.toLowerCase()}" data-al-status="${st}">
+          <td class="px-3 py-2 text-[11px] whitespace-nowrap">${String(r['Timestamp']||'').replace('T',' ').slice(0,19)}</td>
+          <td class="px-3 py-2 font-mono text-[11px]">${cid}</td>
+          <td class="px-3 py-2">${cust}</td>
+          <td class="px-3 py-2">${esc(r['BU']||'')}</td>
+          <td class="px-3 py-2 text-[11px]" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r['To']||'')}">${esc(r['To']||'')}</td>
+          <td class="px-3 py-2 text-[11px]">${esc(r['Sender']||'')}</td>
           <td class="px-3 py-2 text-right">${r['Invoice Count']||0}</td>
-          <td class="px-3 py-2 text-right">${fuFmtINR(r['Outstanding Total']||0)}</td>
-          <td class="px-3 py-2" style="color:${color};font-weight:600">${r['Status']||''}</td>
-          <td class="px-3 py-2 text-[11px]" style="max-width:340px;word-break:break-word;color:#7c2d12">${esc(err)}</td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">${fuFmtINR(r['Outstanding Total']||0)}</td>
+          <td class="px-3 py-2 whitespace-nowrap" style="color:${color};font-weight:600">${esc(r['Status']||'')}</td>
+          <td class="px-3 py-2 text-[11px]" style="max-width:280px;word-break:break-word;color:#7c2d12">${esc(err)}</td>
         </tr>`;
       }).join('');
     }
@@ -10872,6 +11010,14 @@ function wireActivityLog(){
   document.getElementById('alMonth').value = today.toISOString().slice(0,7);
   document.getElementById('alRefresh').addEventListener('click', loadActivityLog);
   document.getElementById('alGenMonth').addEventListener('click', generateMonthlyReportXls);
+  // Overview tab wiring
+  document.getElementById('ovRefresh').addEventListener('click', loadActivityOverview);
+  document.getElementById('ovCustSearch').addEventListener('input', loadActivityOverview);
+  document.getElementById('ovActionFilter').addEventListener('change', loadActivityOverview);
+  document.getElementById('ovRange').addEventListener('change', loadActivityOverview);
+  // Email Sends live filter
+  document.getElementById('alCustSearch')?.addEventListener('input', alFilterEmailTable);
+  document.getElementById('alStatusFilter')?.addEventListener('change', alFilterEmailTable);
 
   // Worklist Activity (notes / follow-ups / P2P) panel — independent filters,
   // shares the same data source as the To-Do List daily report.
@@ -10882,6 +11028,7 @@ function wireActivityLog(){
   // a matching pane id of "alTabPane<KeyTitleCase>". Keep this loop simple so
   // adding a new tab in the future is a 4-line HTML edit, no JS changes.
   const _alTabPanes = {
+    'overview': 'alTabPaneOverview',
     'email':    'alTabPaneEmail',
     'worklist': 'alTabPaneWorklist'
   };
@@ -10900,7 +11047,14 @@ function wireActivityLog(){
         if (pane) pane.style.display = (k === key) ? '' : 'none';
       });
       // Auto-load the freshly-shown tab if it hasn't been populated yet
-      if (key === 'worklist') {
+      if (key === 'overview') {
+        try {
+          const tb = document.getElementById('ovTbody');
+          if (tb && tb.querySelector('td.text-center') && typeof loadActivityOverview === 'function') {
+            loadActivityOverview();
+          }
+        } catch(_){}
+      } else if (key === 'worklist') {
         try {
           const tb = document.getElementById('walTbody');
           if (tb && tb.querySelector('td.text-center') && typeof loadWorklistActivity === 'function') {
@@ -11549,13 +11703,13 @@ function wlRenderTable(){
       <td class="px-3 py-2">${wlEsc(r.customer)}${invHint}</td>
       <td class="px-3 py-2 text-right font-semibold">${wlFmtINR(r.openOs)}</td>
       <td class="px-3 py-2">${fuBadge}</td>
-      <td class="px-3 py-2">
+      <td class="px-3 py-2" style="white-space:nowrap">
         <button class="chip wl-row-open" style="padding:2px 10px;font-size:11px;margin-right:4px">📝 Open</button>
-        <button class="chip wl-goto-followup" data-cid="${wlEsc(r.cid)}" data-cust="${wlEsc(r.customer)}" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📧 Email</button>
+        <button class="chip wl-goto-followup" data-cid="${wlEsc(r.cid)}" data-cust="${wlEsc(r.customer)}" title="Go to Follow-up Emails for this customer" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📧 Email</button>
       </td>
     </tr>`;
   }).join('');
-tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click', e => {
+  tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click', e => {
     if (e.target.closest('.wl-goto-followup')) return;
     const cid = tr.getAttribute('data-wl-open');
     const cust = tr.getAttribute('data-wl-cust');
@@ -11563,9 +11717,7 @@ tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click
   }));
   tb.querySelectorAll('.wl-goto-followup').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
-    const cid = btn.dataset.cid;
     showTab('followups');
-    setTimeout(() => { if (typeof fuPreviewOne === 'function') fuPreviewOne(cid); }, 150);
   }));
 }
 
