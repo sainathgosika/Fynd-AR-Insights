@@ -8403,8 +8403,7 @@ function fuRenderTable(){
       <td class="px-3 py-2 text-right">${fuFmtINR(r.outstandingTotal)}</td>
       <td class="px-3 py-2 text-right">${r.oldestDays}</td>
       <td class="px-3 py-2 ${statusClass}">${r.reason}</td>
-      <td class="px-3 py-2">${r.eligible ? `<button class="chip fu-preview-one" data-cid="${r.cid}">👁 Preview</button>` : ''}</td>
-    </tr>`;
+      <td class="px-3 py-2" style="white-space:nowrap">${r.eligible ? `<button class="chip fu-preview-one" data-cid="${r.cid}" style="margin-right:4px">👁 Preview</button>` : ''}<button class="chip fu-goto-worklist" data-cid="${r.cid}" data-cust="${(r.customer||'').replace(/"/g,'&quot;')}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer">📝 Note</button></td>   </tr>`;
   }).join('');
   tbody.innerHTML = html;
   // Wire row events
