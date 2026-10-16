@@ -8397,7 +8397,7 @@ function fuRenderTable(){
       <td class="px-3 py-2 font-mono text-[11px]">${r.cid}</td>
       <td class="px-3 py-2">${r.customer||'—'}</td>
       <td class="px-3 py-2">${r.bu||'—'}</td>
-      <td class="px-3 py-2 text-[11px]">${r.toEmail||'<span style="color:#b91c1c">— no contact —</span>'}</td>
+      <td class="px-3 py-2 text-[11px]" style="max-width:180px;overflow:hidden">${r.toEmail ? `<span title="${r.toEmail.replace(/"/g,'&quot;')}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;cursor:help">${r.toEmail}</span>` : '<span style="color:#b91c1c">— no contact —</span>'}</td>
       <td class="px-3 py-2 text-right">${r.count}</td>
       <td class="px-3 py-2 text-right">${fuFmtINR(r.invoiceTotal)}</td>
       <td class="px-3 py-2 text-right">${fuFmtINR(r.outstandingTotal)}</td>
@@ -11554,7 +11554,9 @@ tb.querySelectorAll('tr[data-wl-open]').forEach(tr => tr.addEventListener('click
   }));
   tb.querySelectorAll('.wl-goto-followup').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
+    const cid = btn.dataset.cid;
     showTab('followups');
+    setTimeout(() => { if (typeof fuPreviewOne === 'function') fuPreviewOne(cid); }, 500);
   }));
 }
 
