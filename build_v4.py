@@ -14472,7 +14472,7 @@ async function authDoGoogleLogin(jwt){
   const oldHint = hint ? hint.textContent : '';
   if (hint) hint.textContent = 'Signing you in…';
   try {
-    const res = await _fuPost('authGoogleLogin', {
+    const res = await _fuJsonp('authGoogleLogin', {
       credential: jwt,
       ua: (navigator && navigator.userAgent) || ''
     });
