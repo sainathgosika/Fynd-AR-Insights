@@ -779,8 +779,7 @@ HTML = r"""<!DOCTYPE html>
   <div class="lg-card">
     <!-- Fynd Logo -->
     <div class="lg-logo-wrap">
-      <img src="https://cdn.brandfetch.io/id7q4N5Xqp/w/3750/h/3750/theme/dark/idNy5EIX-i.png?c=1dxbfHSJFAPEGdCLU4o5B" class="lg-logo-icon" alt="Fynd" style="object-fit:contain;" onerror="this.style.display='none'"/>
-      <span class="lg-logo-name">Fynd</span>
+      <img src="https://cdn.brandfetch.io/id7q4N5Xqp/w/3750/h/3750/theme/dark/idNy5EIX-i.png?c=1dxbfHSJFAPEGdCLU4o5B" alt="Fynd" style="width:64px;height:64px;object-fit:contain;" onerror="this.style.display='none'"/>
     </div>
     <div class="lg-product">Receivables · AR Control Tower</div>
     <h1 id="lgTitle" style="display:none">Receivables · AR Control Tower</h1>
